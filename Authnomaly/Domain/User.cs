@@ -1,7 +1,10 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
 
 namespace Authnomaly.Domain;
-
+[Table("Users")]
+[PrimaryKey("Id")]
 public class User : Entity<long>
 {
     private string _username = default!;
@@ -17,10 +20,6 @@ public class User : Entity<long>
     {
         get => _email;
         set => _email = value ?? throw new ArgumentNullException(nameof(value));
-    }
-    public User(long id) : base(id)
-    {
-        
     }
     public User(long id, string username, string email) : base(id)
     {
