@@ -1,0 +1,46 @@
+# Build results
+bin/
+obj/
+out/
+
+# Rider / ReSharper
+.idea/
+*.sln.iml
+
+# Visual Studio
+.vs/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+# .NET secrets / local config (never commit real secrets)
+appsettings.Local.json
+appsettings.*.Local.json
+*.env
+.env
+
+# EF Core
+Migrations/*.sql
+
+# NuGet
+*.nupkg
+**/packages/*
+!**/packages/build/
+
+# Test / coverage results
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+# Logs
+*.log
+logs/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Docker (if/when you add it)
+docker-compose.override.yml
