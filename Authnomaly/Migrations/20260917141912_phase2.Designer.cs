@@ -4,6 +4,7 @@ using System.Net;
 using Authnomaly.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Authnomaly.Migrations
 {
     [DbContext(typeof(AuthnomalyDatabaseContext))]
-    partial class AuthnomalyDatabaseContextModelSnapshot : ModelSnapshot
+    [Migration("20260917141912_phase2")]
+    partial class phase2
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -77,9 +80,6 @@ namespace Authnomaly.Migrations
                     b.Property<string>("OperatingSystem")
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
-
-                    b.Property<int?>("Port")
-                        .HasColumnType("integer");
 
                     b.Property<bool?>("Succeeded")
                         .HasColumnType("boolean");

@@ -64,12 +64,12 @@ public class UsersRepository : IUsersRepo
                 .FirstOrDefaultAsync();
             if (found is null)
             {
-                return null;
+                return new User(-1L,"","");
             }
             var hashedData = Encryption.HashPassword(password);
             return Encryption.VerifyPassword(password, hashedData.Hash, hashedData.Salt)
                 ? found
-                : null;
+                : new User(-1,"","");
         }
         catch
         {

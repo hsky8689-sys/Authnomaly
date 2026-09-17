@@ -7,6 +7,7 @@ public class AuthnomalyDatabaseContext : DbContext
 {
     public DbSet<User> users { get; set; }
     public DbSet<AuthCredentials> authCredentials { get; set; }
+    public DbSet<LoginAttempt> loginAttempts { get; set; }
     /*to be added for the next entities*/
     public AuthnomalyDatabaseContext(DbContextOptions<AuthnomalyDatabaseContext> options):base(options)
     {

@@ -2,7 +2,6 @@
 using Microsoft.EntityFrameworkCore;
 
 namespace Authnomaly.Domain;
-
 [Table("AuthCredentials")]
 [PrimaryKey("Id")]
 public class AuthCredentials : Entity<long>
