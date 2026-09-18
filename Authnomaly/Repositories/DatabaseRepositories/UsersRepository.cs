@@ -19,7 +19,7 @@ public class UsersRepository : IUsersRepo
         {
             await _context.users.AddAsync(entity);
             var addedLines = await _context.SaveChangesAsync();
-            return addedLines.Equals(1) ? entity.Id : -1;
+            return addedLines.Equals(1) ? entity.Id : 0;
         }
         catch
         {
@@ -54,22 +54,14 @@ public class UsersRepository : IUsersRepo
             throw;
         }
     }
-
-    public async Task<User> Login(string username, string password)
+    public async Task<User> FindByUsername(string username)
     {
         try
         {
             User? found = await _context.users.AsNoTracking()
                 .Where(u => u.Username.Equals(username))
                 .FirstOrDefaultAsync();
-            if (found is null)
-            {
-                return new User(-1L,"","");
-            }
-            var hashedData = Encryption.HashPassword(password);
-            return Encryption.VerifyPassword(password, hashedData.Hash, hashedData.Salt)
-                ? found
-                : new User(-1,"","");
+            return found is not null ? found : new User(0,"","");
         }
         catch
         {

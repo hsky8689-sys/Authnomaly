@@ -44,7 +44,7 @@ public class LoginAttemptsRepository : ILoginAttemptsRepo
         {
             await _context.loginAttempts.AddAsync(entity);
             var added = await _context.SaveChangesAsync();
-            return added == 1 ? entity.Id : -1;
+            return added == 1 ? entity.Id : 0;
         }
         catch
         {

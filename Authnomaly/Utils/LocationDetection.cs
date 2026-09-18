@@ -1,6 +1,6 @@
 ﻿using System.Net;
 using MaxMind.GeoIP2;
-using MaxMind.GeoIP2.Responses;
+using MaxMind.GeoIP2.Exceptions;
 
 namespace Authnomaly.Utils;
 
@@ -16,9 +16,17 @@ public sealed class LocationDetection
 
     public static (string city, string country) GetStandardLocation(IPAddress ipAddress)
     {
-        var reader = GetReader();
-        var city = reader.City(ipAddress);
-        return (city.City.Name,city.Country.Name);
+        try
+        {
+            var reader = GetReader();
+            var city = reader.City(ipAddress);
+            return (city.City.Name, city.Country.Name);
+        }
+        catch (AddressNotFoundException)
+        {
+            // private/loopback/reserved addresses (e.g. ::1, 127.0.0.1) are never in the database
+            return ("Unknown", "Unknown");
+        }
     }
     public static (double? Latitude,double? Longitude) GetCoordinates(IPAddress ipAddress)
     {

@@ -20,7 +20,7 @@ public class DeviceDetails
         attempt.Browser = $"{clientInfo.UserAgent.Family} {clientInfo.UserAgent.Major}".Trim();
         attempt.City = city;
         attempt.Country = country;
-        attempt.AttemptTime = DateTimeOffset.Now;
+        attempt.AttemptTime = DateTimeOffset.UtcNow;
         attempt.DeviceName = $"{clientInfo.Device.Brand} {clientInfo.Device.Model}".Trim();
         attempt.Port = connection.RemotePort;
         return attempt;

@@ -1,5 +1,9 @@
 using Authnomaly.Repositories;
+using Authnomaly.Repositories.DatabaseRepositories;
+using Authnomaly.Repositories.Interfaces;
+using Authnomaly.Services;
 using Authnomaly.Utils;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
@@ -17,14 +21,23 @@ catch (Exception e)
     Console.WriteLine($"Eroare la rulare migrari: {e.Message}");
 }
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddScoped<DbContext, AuthnomalyDatabaseContext>();
+var password = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_PASSWORD") ?? throw new InvalidOperationException("AUTHNOMALY_DB_PASSWORD environment variable is not set.");
+builder.Services.AddDbContext<AuthnomalyDatabaseContext>(options =>
+    options.UseNpgsql($"Host=localhost;Database=Authnomaly;Username=postgres;Password={password}"));
+builder.Services.AddScoped<ISigningKeyStore,SigningKeysRepository>();
+builder.Services.AddScoped<ISigningKeyProtection, DataProtectionAPIService>();
+builder.Services.AddScoped<DataProtectionAPIService>();
+builder.Services.AddScoped<IUsersRepo, UsersRepository>();
+builder.Services.AddScoped<ICredentialsRepo, CredentialsRepository>();
+builder.Services.AddScoped<ILoginAttemptsRepo, LoginAttemptsRepository>();
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<JwtService>();
+builder.Services.AddControllers();
+builder.Services.AddHostedService<KeyPairRotationService>();
+builder.Services.AddHostedService<CleanupSecurityKeysService>();
+builder.Services.AddDataProtection().PersistKeysToDbContext<AuthnomalyDatabaseContext>();
 var app = builder.Build();
-var pass = "0763juiu";
-var data = Encryption.HashPassword(pass);
-var hashedData = data.Hash;
-var salt = data.Salt;
-//Console.WriteLine(Convert.ToBase64String(hashedData));
-Console.WriteLine(Encryption.VerifyPassword(pass,hashedData,salt));
+app.MapControllers();
 app.Run();
 public class AuthnomalyDatabaseContextFactory : IDesignTimeDbContextFactory<AuthnomalyDatabaseContext>
 {

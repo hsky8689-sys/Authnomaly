@@ -1,5 +1,6 @@
 ﻿using Authnomaly.Domain;
 using Authnomaly.Repositories.Interfaces;
+using Authnomaly.Utils;
 using Microsoft.EntityFrameworkCore;
 
 namespace Authnomaly.Repositories.DatabaseRepositories;
@@ -19,7 +20,7 @@ public class CredentialsRepository : ICredentialsRepo
                                                          .AsNoTracking()
                                                          .Where(c => c.Owner.Id.Equals(userId))
                                                          .FirstOrDefaultAsync();
-            return res is null ? new AuthCredentials(-1) : res;
+            return res is null ? new AuthCredentials(0) : res;
         }
         catch
         {
@@ -33,7 +34,9 @@ public class CredentialsRepository : ICredentialsRepo
             AuthCredentials found = await FindById(userId);
             if (!found.Id.Equals(-1))
             {
-                found.Password = newPassword;
+                var hashResults = Encryption.HashPassword(newPassword);
+                found.PasswordHash = Convert.ToBase64String(hashResults.Hash);
+                found.Salt = hashResults.Salt;
                 var changed = await _context.SaveChangesAsync();
                 return changed == 1;
             }
@@ -69,7 +72,7 @@ public class CredentialsRepository : ICredentialsRepo
             var res = await _context.authCredentials
                                                                  .Where(c => c.Id.Equals(id))
                                                                  .FirstOrDefaultAsync();
-            return res is null ? new AuthCredentials(-1) : res;
+            return res is null ? new AuthCredentials(0) : res;
         }
         catch
         {

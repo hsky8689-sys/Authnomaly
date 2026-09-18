@@ -1,13 +1,16 @@
 ﻿using Authnomaly.Domain;
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace Authnomaly.Repositories;
 
-public class AuthnomalyDatabaseContext : DbContext
+public class AuthnomalyDatabaseContext : DbContext,IDataProtectionKeyContext
 {
     public DbSet<User> users { get; set; }
     public DbSet<AuthCredentials> authCredentials { get; set; }
     public DbSet<LoginAttempt> loginAttempts { get; set; }
+    public DbSet<DataProtectionKey> DataProtectionKeys { get; set; }
+    public DbSet<SigningKey> SigningKeys { get; set; }
     /*to be added for the next entities*/
     public AuthnomalyDatabaseContext(DbContextOptions<AuthnomalyDatabaseContext> options):base(options)
     {
@@ -26,5 +29,7 @@ public class AuthnomalyDatabaseContext : DbContext
             .HasOne(a => a.Owner)
             .WithOne()
             .HasForeignKey<AuthCredentials>(a => a.Id);
+        modelBuilder.Entity<SigningKey>()
+            .HasIndex(s=>s.CreatedAt);
     }
 }

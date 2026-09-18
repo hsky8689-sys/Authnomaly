@@ -1,4 +1,6 @@
 ﻿using System.Text;
+using Authnomaly.Domain;
+using Microsoft.IdentityModel.Tokens;
 
 namespace Authnomaly.Utils;
 using Konscious.Security.Cryptography;
