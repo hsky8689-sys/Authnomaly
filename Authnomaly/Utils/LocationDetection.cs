@@ -1,10 +1,16 @@
 ﻿using System.Net;
 using MaxMind.GeoIP2;
-using MaxMind.GeoIP2.Exceptions;
 
 namespace Authnomaly.Utils;
 
-public sealed class LocationDetection
+public interface ILocationDetector
+{
+    (string city, string country) GetStandardLocation(IPAddress ipAddress);
+    double ComputeDistance(double lat1, double lat2, double lon1, double lon2);
+    (double? Latitude, double? Longitude) GetCoordinates(IPAddress ipAddress);
+}
+
+public sealed class LocationDetectionGepIp : ILocationDetector
 {
     private static readonly string _pathToGeo = Environment.GetEnvironmentVariable("GEO_LOCALDB_PATH");
     private static DatabaseReader? _reader = null;
@@ -14,7 +20,7 @@ public sealed class LocationDetection
         return _reader;
     }
 
-    public static (string city, string country) GetStandardLocation(IPAddress ipAddress)
+    public /*static*/ (string city, string country) GetStandardLocation(IPAddress ipAddress)
     {
         try
         {
@@ -22,13 +28,14 @@ public sealed class LocationDetection
             var city = reader.City(ipAddress);
             return (city.City.Name, city.Country.Name);
         }
-        catch (AddressNotFoundException)
+        catch (Exception e)
         {
+            Console.WriteLine(e.Message);
             // private/loopback/reserved addresses (e.g. ::1, 127.0.0.1) are never in the database
             return ("Unknown", "Unknown");
         }
     }
-    public static (double? Latitude,double? Longitude) GetCoordinates(IPAddress ipAddress)
+    public /*static*/ (double? Latitude,double? Longitude) GetCoordinates(IPAddress ipAddress)
     {
         var reader = GetReader();
         var city = reader.City(ipAddress);
@@ -45,7 +52,7 @@ public sealed class LocationDetection
         }
     }
     //Harvesine mathematical formula for distance between 2 points on Earth
-    public static double ComputeDistance(double lat1,double lat2,double lon1,double lon2)
+    public /*static*/ double ComputeDistance(double lat1,double lat2,double lon1,double lon2)
     {
         const double R = 6371;
         double dLat = (lat2 - lat1) * Math.PI / 180;

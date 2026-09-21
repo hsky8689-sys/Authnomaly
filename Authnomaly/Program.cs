@@ -1,11 +1,13 @@
 using Authnomaly.Repositories;
 using Authnomaly.Repositories.DatabaseRepositories;
 using Authnomaly.Repositories.Interfaces;
+using Authnomaly.Repositories.MemoryRepositories;
 using Authnomaly.Services;
 using Authnomaly.Utils;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using StackExchange.Redis;
 
 try
 {
@@ -31,6 +33,10 @@ builder.Services.AddScoped<IUsersRepo, UsersRepository>();
 builder.Services.AddScoped<ICredentialsRepo, CredentialsRepository>();
 builder.Services.AddScoped<ILoginAttemptsRepo, LoginAttemptsRepository>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<ILocationDetector,LocationDetectionGepIp>();
+builder.Services.AddScoped<ITokenBlacklistStore, TokenBlacklistRepository>();
+builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect("localhost"));
+builder.Services.AddHttpClient();
 builder.Services.AddScoped<JwtService>();
 builder.Services.AddControllers();
 builder.Services.AddHostedService<KeyPairRotationService>();
@@ -47,3 +53,5 @@ public class AuthnomalyDatabaseContextFactory : IDesignTimeDbContextFactory<Auth
         return new AuthnomalyDatabaseContext(options.Options);
     }
 }
+//var location = LocationDetection.GetStandardLocation(IPAddress.Parse("184.86.103.213"));
+//Console.WriteLine($"city:{location.city} country{location.country}");

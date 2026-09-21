@@ -19,12 +19,12 @@
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       </PackageReference>
       <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.22.0" />
+      <PackageReference Include="StackExchange.Redis" Version="3.3.0" />
       <PackageReference Include="UAParser" Version="3.1.47" />
     </ItemGroup>
 
     <ItemGroup>
       <Folder Include="Middlewares\" />
-      <Folder Include="Repositories\MemoryRepositories\" />
     </ItemGroup>
 
 </Project>

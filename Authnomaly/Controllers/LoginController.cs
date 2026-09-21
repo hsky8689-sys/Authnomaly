@@ -31,10 +31,9 @@ public class ClientsController:ControllerBase
         if (found.Id == 0) return BadRequest(new { message = "Wrong credentials" });
         var lastSigning = await _jwtService.GetLastPrivateKey();
         var lastPrivate = _protectionApiService.GetPrivateKey(lastSigning);
-        var jwt = JwtUtils.CreateJwt(username,lastPrivate);
+        var jwt = JwtUtils.CreateJwt(username,Guid.NewGuid(),lastPrivate);
         return Ok(new {token=jwt,message=$"Login successful for user {found.Username}"});
     }
-
     [HttpPost("register")]
     public async Task<IActionResult> HandleReqister([FromBody] IDictionary<string,string> registerData)
     {
@@ -45,5 +44,11 @@ public class ClientsController:ControllerBase
         return registered.authenticated 
                 ? Ok(new { message = "User was succesfully created" })
                 : BadRequest(new {message=registered.message});
+    }
+
+    [HttpGet("refresh")]
+    public async Task<IActionResult> HandleRefresh([FromBody] string jti)
+    {
+        return Ok();
     }
 }

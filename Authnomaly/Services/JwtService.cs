@@ -7,9 +7,12 @@ namespace Authnomaly.Services;
 public class JwtService
 {
     private readonly ISigningKeyStore _securityKeysRepo;
-    public JwtService(ISigningKeyStore securityKeysRepo)
+    private readonly ITokenBlacklistStore _tokenKeyStoreRepo;
+    public JwtService(ISigningKeyStore securityKeysRepo,
+                      ITokenBlacklistStore tokenKeyStoreRepo)
     {
         _securityKeysRepo = securityKeysRepo;
+        _tokenKeyStoreRepo = tokenKeyStoreRepo;
     }
 
     public async Task<SigningKey> GetLastPrivateKey()
@@ -37,13 +40,13 @@ public class JwtService
         }
         return active;
     }
-    public bool InvalidateTokenFamily(string jwtToken)
+    public bool InvalidateTokenFamily(string jwtToken,BlacklistLevel reason)
     {
         return true;
     }
-    private bool InvalidateToken(string jwtToken)
+    public async Task<bool> InvalidateToken(string jti,int ttl,BlacklistLevel reason)
     {
-        /**/
+        var res = await _tokenKeyStoreRepo.AddToBlacklist(jti, ttl, reason);
         return true;
     }
 }

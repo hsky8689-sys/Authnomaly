@@ -1,9 +1,4 @@
-﻿using Authnomaly.Domain;
-using Authnomaly.Repositories.Interfaces;
-using Authnomaly.Services;
-using Microsoft.AspNetCore.DataProtection;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.Tokens;
+﻿using Authnomaly.Repositories.Interfaces;
 
 namespace Authnomaly.Utils;
 
@@ -21,7 +16,6 @@ public sealed class KeyPairRotationService : BackgroundService
         {
             using var scope = _scopeFactory.CreateScope();
             var keyStore = scope.ServiceProvider.GetRequiredService<ISigningKeyStore>();
-
             var newPair = JwtUtils.CreatePair();
             await keyStore.RotateKeyValuePair(newPair.Key, newPair.Value);
         } while (await timer.WaitForNextTickAsync(stoppingToken));

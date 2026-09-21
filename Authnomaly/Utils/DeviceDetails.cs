@@ -5,6 +5,11 @@ namespace Authnomaly.Utils;
 using UAParser;
 public class DeviceDetails
 {
+    private static ILocationDetector _locationDetector;
+    public DeviceDetails(ILocationDetector locationDetector)
+    {
+        _locationDetector = locationDetector;
+    }
     //only for logging in our server for now
     public static LoginAttempt CollectAttemptData(HttpContext context)
     {
@@ -13,7 +18,7 @@ public class DeviceDetails
         var connection = context.Connection;
         string userAgentHeader = request.Headers["User-Agent"].ToString();
         ClientInfo clientInfo = parser.Parse(userAgentHeader);
-        (string city, string country) = LocationDetection.GetStandardLocation(connection.RemoteIpAddress);
+        (string city, string country) = _locationDetector.GetStandardLocation(connection.RemoteIpAddress);
         LoginAttempt attempt = new LoginAttempt(0);
         attempt.IpAddress = connection.RemoteIpAddress;
         attempt.OperatingSystem = $"{clientInfo.OS.Family} {clientInfo.OS.Major}".Trim();

@@ -26,10 +26,11 @@ public sealed class CustomTimer
 }
 public sealed class GeoDatabaseUpdateService : BackgroundService
 {
-    private static int _daysToWait = Int16.Parse(Environment.GetEnvironmentVariable("GEO_UPDATE_INTERVAL"));
-    private static PeriodicTimer _timer;
+    private int _daysToWait;
+    private PeriodicTimer _timer;
     public GeoDatabaseUpdateService(PeriodicTimer timer)
     {
+        _daysToWait = 30;
         _timer = timer;
     }
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

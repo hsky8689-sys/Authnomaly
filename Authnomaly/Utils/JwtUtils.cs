@@ -34,7 +34,7 @@ public class JwtUtils
         rsa.ImportParameters(key.Parameters);
         return rsa.ExportSubjectPublicKeyInfoPem();
     }
-    public static string CreateJwt(string username,SecurityKey privateKey)
+    public static string CreateJwt(string username,Guid familyId,SecurityKey privateKey)
     {
         var handler = new JsonWebTokenHandler();
         var subject = new ClaimsIdentity(
@@ -42,6 +42,8 @@ public class JwtUtils
             {
                 new Claim("username",username),
                 new Claim("roles","user"),
+                new Claim("jti",Guid.NewGuid().ToString()),
+                new Claim("familyId",familyId.ToString()),
                 new Claim("trust","100")//changed after anomaly detection features start
             }
             );
