@@ -58,17 +58,26 @@ public class TokenBlacklistRepository : ITokenBlacklistStore
             AbsoluteExpirationRelativeToNow = ttl
         };
         await _cache.SetStringAsync(
-            $"refreshTokens:{familyId.ToString()}", 
+            $"refreshToken:{familyId.ToString()}", 
             jti,
             options
         );
     }
     public async Task RevokeFamily(Guid familyId)
     {
-        await _cache.RemoveAsync($"refreshTokens:{familyId.ToString()}");
+        await _cache.RemoveAsync($"refreshToken:{familyId.ToString()}");
     }
-    public Task<bool> IsFamilyRevoked(Guid familyId)
+    public async Task<bool> IsFamilyRevoked(Guid familyId)
     {
-        throw new NotImplementedException();
+        return await _cache.GetAsync($"refreshToken:{familyId.ToString()}") != null;
+    }
+    public async Task<(double? latitude, double? longitude)> GetLastLocation(string endpoint,string username)
+    {
+       /*salvam latitudinea si longitudinea ultimelei conectari reusite
+        la endpointuri protejate(non login/register) la fiecare user*/
+       var saved = await _cache.GetStringAsync($"last:{endpoint}:{username}");
+       if (saved is null) return (null, null);
+       var latLon = saved.Split("/");
+       return (Double.Parse(latLon[0]), Double.Parse(latLon[1]));
     }
 }
