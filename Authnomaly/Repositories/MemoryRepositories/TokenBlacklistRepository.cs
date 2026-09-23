@@ -58,17 +58,17 @@ public class TokenBlacklistRepository : ITokenBlacklistStore
             AbsoluteExpirationRelativeToNow = ttl
         };
         await _cache.SetStringAsync(
-            $"refreshTokens:{familyId.ToString()}", 
+            $"refreshToken:{familyId.ToString()}", 
             jti,
             options
         );
     }
     public async Task RevokeFamily(Guid familyId)
     {
-        await _cache.RemoveAsync($"refreshTokens:{familyId.ToString()}");
+        await _cache.RemoveAsync($"refreshToken:{familyId.ToString()}");
     }
-    public Task<bool> IsFamilyRevoked(Guid familyId)
+    public async Task<bool> IsFamilyRevoked(Guid familyId)
     {
-        throw new NotImplementedException();
+        return await _cache.GetAsync($"refreshToken:{familyId.ToString()}") != null;
     }
 }
