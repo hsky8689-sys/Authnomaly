@@ -1,8 +1,8 @@
 ﻿using Authnomaly.Domain;
-using MaxMind.GeoIP2.Model;
+using UAParser;
 
 namespace Authnomaly.Utils;
-using UAParser;
+
 public class DeviceDetails
 {
     private static ILocationDetector _locationDetector;

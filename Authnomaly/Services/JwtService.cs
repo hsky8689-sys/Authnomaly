@@ -50,7 +50,7 @@ public class JwtService
         return await _tokenKeyStoreRepo.GetCurrentFamilyJti(guId);
     }
 
-    public async Task<(double? latitude, double? longitude)> GetLastLocation(string endpoint, string username)
+    public async Task<(double? latitude, double? longitude,DateTimeOffset timestamp)> GetLastLocation(string endpoint, string username)
     {
         if(endpoint.Length == 0) return default;
         if (username.Length == 0) return default;

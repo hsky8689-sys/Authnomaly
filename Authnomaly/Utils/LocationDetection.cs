@@ -39,17 +39,9 @@ public sealed class LocationDetectionGepIp : ILocationDetector
     {
         var reader = GetReader();
         var city = reader.City(ipAddress);
-        try
-        {
-            var latitude = city.Location.Latitude is not null ? city.Location.Latitude : -1;
-            var longitude = city.Location.Longitude is not null ? city.Location.Longitude : -1;
-            return (latitude!, longitude!);
-        }
-        finally
-        {
-            if (city.Location.AccuracyRadius >= 1000)
-                throw new Exception("Impossible travel detected");
-        }
+        var latitude = city.Location.Latitude is not null ? city.Location.Latitude : -1;
+        var longitude = city.Location.Longitude is not null ? city.Location.Longitude : -1;
+        return (latitude!, longitude!);
     }
     //Harvesine mathematical formula for distance between 2 points on Earth
     public double ComputeDistance(double lat1,double lat2,double lon1,double lon2)

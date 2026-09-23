@@ -42,6 +42,21 @@ public class ClientsController:ControllerBase
         var lastSigning = await _jwtService.GetLastPrivateKey();
         var lastPrivate = _protectionApiService.GetPrivateKey(lastSigning);
         var jwt = JwtUtils.CreateJwt(username,Guid.NewGuid(),lastPrivate);
+        var lastLogin = await _jwtService.GetLastLocation("login", username);
+        if (lastLogin.latitude is null || lastLogin.longitude is null)
+        {
+            //first login detected,no impossible travel
+            return Ok(new {token=jwt,message=$"Login successful for user {found.Username}"}); 
+        }
+        var deviceData = DeviceDetails.CollectAttemptData(HttpContext);
+        (double? crtLatitude, double? crtLongitude) currentCoordinates = _locationDetector.GetCoordinates(deviceData.IpAddress!);
+        if (_locationDetector.ComputeDistance(currentCoordinates.crtLatitude!.Value,
+                lastLogin.latitude!.Value,
+                currentCoordinates.crtLongitude!.Value,
+                lastLogin.longitude!.Value) / (deviceData.AttemptTime!.Value.Subtract(lastLogin.timestamp)).Hours >= 1000)
+        {
+            // trust factor handle not ready by now...
+        }
         return Ok(new {token=jwt,message=$"Login successful for user {found.Username}"});
     }
     [HttpPost("register")]

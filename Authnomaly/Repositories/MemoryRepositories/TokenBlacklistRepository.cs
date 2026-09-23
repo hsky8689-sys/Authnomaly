@@ -71,13 +71,13 @@ public class TokenBlacklistRepository : ITokenBlacklistStore
     {
         return await _cache.GetAsync($"refreshToken:{familyId.ToString()}") != null;
     }
-    public async Task<(double? latitude, double? longitude)> GetLastLocation(string endpoint,string username)
+    public async Task<(double? latitude, double? longitude,DateTimeOffset timestamp)> GetLastLocation(string endpoint,string username)
     {
        /*salvam latitudinea si longitudinea ultimelei conectari reusite
         la endpointuri protejate(non login/register) la fiecare user*/
        var saved = await _cache.GetStringAsync($"last:{endpoint}:{username}");
-       if (saved is null) return (null, null);
+       if (saved is null) return (null, null,DateTimeOffset.UtcNow);
        var latLon = saved.Split("/");
-       return (Double.Parse(latLon[0]), Double.Parse(latLon[1]));
+       return (Double.Parse(latLon[0]), Double.Parse(latLon[1]),DateTimeOffset.Parse(latLon[2]));
     }
 }
