@@ -15,4 +15,5 @@ public interface ITokenBlacklistStore
     Task SetCurrentFamilyJti(Guid familyId, string jti, TimeSpan ttl);
     Task RevokeFamily(Guid familyId);
     Task<bool> IsFamilyRevoked(Guid familyId);
+    Task<(double? latitude, double? longitude)> GetLastLocation(string endpoint,string username);
 }

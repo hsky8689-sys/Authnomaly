@@ -1,4 +1,5 @@
-﻿using Authnomaly.Domain;
+﻿using System.Security.Cryptography;
+using Authnomaly.Domain;
 using Authnomaly.Repositories.Interfaces;
 using Authnomaly.Utils;
 
@@ -25,31 +26,41 @@ public sealed class AuthService
     }
     public async Task<(bool authenticated,string message)> Authenticate(string username,string password,string email)
     {
-        bool authenticated = true;
-        string message = "You were succesfully logged in";
-        User? found = await _usersRepo.FindByUsername(username);
-        if (found.Id != 0)
+        (byte[] hash, byte[] salt) hashedPasswordData = ([],[]);
+        try
         {
-            message = "User with given username already exists";
-            authenticated = false;
+            bool authenticated = true;
+            string message = "You were succesfully logged in";
+            User? found = await _usersRepo.FindByUsername(username);
+            if (found.Id != 0)
+            {
+                message = "User with given username already exists";
+                authenticated = false;
+                return (authenticated, message);
+            }
+
+            User newUser = new User(0, username, email);
+            if (await _usersRepo.Add(newUser) == 0)
+            {
+                message = "User with given username already exists";
+                authenticated = false;
+                return (authenticated, message);
+            }
+            hashedPasswordData = Encryption.HashPassword(password);
+            AuthCredentials credentials = new AuthCredentials(0, username,
+                Convert.ToBase64String(hashedPasswordData.hash), newUser, hashedPasswordData.salt);
+            if (await _credentialsRepo.Add(credentials) == 0)
+            {
+                message = "User with given username already exists";
+                authenticated = false;
+                return (authenticated, message);
+            }
             return (authenticated, message);
         }
-        User newUser = new User(0, username, email);
-        if (await _usersRepo.Add(newUser) == 0)
+        finally
         {
-            message = "User with given username already exists";
-            authenticated = false;
-            return (authenticated, message); 
+            Encryption.DeleteFromRam(hashedPasswordData.hash, hashedPasswordData.salt);
         }
-        (byte[] hash , byte[] salt) hashedPasswordData = Encryption.HashPassword(password);
-        AuthCredentials credentials = new AuthCredentials(0,username,Convert.ToBase64String(hashedPasswordData.hash),newUser,hashedPasswordData.salt);
-        if (await _credentialsRepo.Add(credentials) == 0)
-        {
-            message = "User with given username already exists";
-            authenticated = false;
-            return (authenticated, message);  
-        }
-        return (authenticated, message);
     }
     public async Task<User> Login(string username,string password,LoginAttempt attempt,long applicationId = 1L)
     {

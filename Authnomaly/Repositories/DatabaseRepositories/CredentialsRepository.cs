@@ -52,7 +52,7 @@ public class CredentialsRepository : ICredentialsRepo
         try
         {
             AuthCredentials found = await FindById(userId);
-            if (!found.Id.Equals(-1))
+            if (!found.Id.Equals(0))
             {
                 found.Username = newUsername;
                 var changed = await _context.SaveChangesAsync();

@@ -20,7 +20,7 @@ public sealed class LocationDetectionGepIp : ILocationDetector
         return _reader;
     }
 
-    public /*static*/ (string city, string country) GetStandardLocation(IPAddress ipAddress)
+    public (string city, string country) GetStandardLocation(IPAddress ipAddress)
     {
         try
         {
@@ -35,7 +35,7 @@ public sealed class LocationDetectionGepIp : ILocationDetector
             return ("Unknown", "Unknown");
         }
     }
-    public /*static*/ (double? Latitude,double? Longitude) GetCoordinates(IPAddress ipAddress)
+    public (double? Latitude,double? Longitude) GetCoordinates(IPAddress ipAddress)
     {
         var reader = GetReader();
         var city = reader.City(ipAddress);
@@ -52,7 +52,7 @@ public sealed class LocationDetectionGepIp : ILocationDetector
         }
     }
     //Harvesine mathematical formula for distance between 2 points on Earth
-    public /*static*/ double ComputeDistance(double lat1,double lat2,double lon1,double lon2)
+    public double ComputeDistance(double lat1,double lat2,double lon1,double lon2)
     {
         const double R = 6371;
         double dLat = (lat2 - lat1) * Math.PI / 180;

@@ -40,13 +40,34 @@ public class JwtService
         }
         return active;
     }
-    public bool InvalidateTokenFamily(string jwtToken,BlacklistLevel reason)
+    public async Task SetCurrentFamilyJti(Guid familyId, string jti, TimeSpan ttl)
     {
-        return true;
+        await _tokenKeyStoreRepo.SetCurrentFamilyJti(familyId, jti, ttl);
+    }
+    public async Task<string?> GetCurrentFamilyOfJti(string jti)
+    {
+        var guId = Guid.Parse(jti);
+        return await _tokenKeyStoreRepo.GetCurrentFamilyJti(guId);
+    }
+
+    public async Task<(double? latitude, double? longitude)> GetLastLocation(string endpoint, string username)
+    {
+        if(endpoint.Length == 0) return default;
+        if (username.Length == 0) return default;
+        if (endpoint.Equals("login")) return default;
+        if (endpoint.Equals("register")) return default;
+        return await _tokenKeyStoreRepo.GetLastLocation(endpoint, username);
+    }
+    public async Task<bool> InvalidateTokenFamily(string jti,BlacklistLevel reason)
+    {
+        var currentFamily = await _tokenKeyStoreRepo.GetCurrentFamilyJti(Guid.Parse(jti));
+        var guId = Guid.Parse(jti);
+        if (currentFamily is null) return false;
+        await _tokenKeyStoreRepo.RevokeFamily(guId);
+        return (await _tokenKeyStoreRepo.GetCurrentFamilyJti(guId)) == null;
     }
     public async Task<bool> InvalidateToken(string jti,int ttl,BlacklistLevel reason)
     {
-        var res = await _tokenKeyStoreRepo.AddToBlacklist(jti, ttl, reason);
-        return true;
+        return await _tokenKeyStoreRepo.AddToBlacklist(jti, ttl, reason);
     }
 }

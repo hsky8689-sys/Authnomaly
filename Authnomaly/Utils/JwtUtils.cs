@@ -51,6 +51,7 @@ public class JwtUtils
         {
             Subject = subject,
             Issuer = "http://localhost:5000",
+            Audience = "http://localhost:5000",
             Expires = DateTime.UtcNow.AddMinutes(30),
             IssuedAt = DateTime.UtcNow,
             SigningCredentials = new SigningCredentials(privateKey,SecurityAlgorithms.RsaSha256)
@@ -76,7 +77,7 @@ public class JwtUtils
             ValidAlgorithms = new [] {SecurityAlgorithms.RsaSha256},
             ClockSkew = TimeSpan.FromSeconds(30)
         };
-        TokenValidationResult resutl = await handler.ValidateTokenAsync(jwt, validationParameters);
-        return resutl.IsValid;
+        TokenValidationResult result = await handler.ValidateTokenAsync(jwt, validationParameters);
+        return result.IsValid;
     }
 }
