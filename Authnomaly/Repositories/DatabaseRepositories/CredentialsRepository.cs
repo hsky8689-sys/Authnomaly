@@ -83,8 +83,8 @@ public class CredentialsRepository : ICredentialsRepo
     {
         try
         {
-            var deleted = await _context.authCredentials.Where(c => c.Id.Equals(id)).ExecuteDeleteAsync();
-            return deleted == 1;
+            return await _context.authCredentials.Where(c => c.Id.Equals(id))
+                                                 .ExecuteDeleteAsync() == 1;
         }
         catch
         {

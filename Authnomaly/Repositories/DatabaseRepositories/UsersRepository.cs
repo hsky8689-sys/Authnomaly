@@ -30,10 +30,9 @@ public class UsersRepository : IUsersRepo
     {
         try
         {
-            User? found = await _context.users.AsNoTracking()
+            return  (await _context.users.AsNoTracking()
                 .Where(u => u.Id.Equals(id))
-                .FirstOrDefaultAsync();
-            return found;
+                .FirstOrDefaultAsync()) ?? new User(0,"","");
         }
         catch
         {
@@ -44,10 +43,8 @@ public class UsersRepository : IUsersRepo
     {
         try
         { 
-            await _context.users.Where(u=>u.Id.Equals(id))
-                                .ExecuteDeleteAsync();
-            var deleted = await _context.SaveChangesAsync();
-            return deleted == 1;
+            return await _context.users.Where(u=>u.Id.Equals(id))
+                                       .ExecuteDeleteAsync() == 1;
         }
         catch
         {
@@ -58,10 +55,9 @@ public class UsersRepository : IUsersRepo
     {
         try
         {
-            User? found = await _context.users.AsNoTracking()
+            return (await _context.users.AsNoTracking()
                 .Where(u => u.Username.Equals(username))
-                .FirstOrDefaultAsync();
-            return found is not null ? found : new User(0,"","");
+                .FirstOrDefaultAsync()) ?? new User(0,"","");
         }
         catch
         {

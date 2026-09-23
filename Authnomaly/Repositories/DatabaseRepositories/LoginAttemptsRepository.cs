@@ -29,9 +29,8 @@ public class LoginAttemptsRepository : ILoginAttemptsRepo
     {
         try
         {
-            await _context.loginAttempts.Where(la => la.Id.Equals(id)).ExecuteDeleteAsync();
-            var deleted = await _context.SaveChangesAsync();
-            return deleted == 1;
+            return await _context.loginAttempts.Where(la => la.Id.Equals(id))
+                                               .ExecuteDeleteAsync() == 1;
         }
         catch
         {

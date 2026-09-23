@@ -4,6 +4,9 @@ using Xunit.Abstractions;
 using System.Security.Cryptography;
 using System.Text;
 using System.Net;
+using System.Security.Claims;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
 namespace Authnomaly.Tests;
 
 // Real, publicly-routable IPs (well-known DNS resolvers + documented cloud/CDN ranges).
@@ -386,5 +389,133 @@ public class UtilsTests
         _output.WriteLine($"Consistent: {consistent}/{checkedCount}");
         Assert.True(checkedCount > 0, "No IPs had a usable country + coordinates pair - can't validate consistency");
         Assert.True(consistent >= checkedCount * 0.8, $"Only {consistent}/{checkedCount} were geographically consistent - GetCoordinates and GetStandardLocation may disagree, or lat/lon may be swapped somewhere");
+    }
+
+    // Builder pattern: sensible defaults (a token JwtUtils.ValidateJwt would accept), override only
+    // what a given test needs bad on purpose (issuer, audience, expiry, or the signing key itself).
+    private static string BuildJwt(SecurityKey signingKey,
+                                   string username = "testuser",
+                                   Guid? familyId = null,
+                                   string issuer = "http://localhost:5000",
+                                   string audience = "http://localhost:5000",
+                                   DateTime? expires = null,
+                                   DateTime? issuedAt = null)
+    {
+        var handler = new JsonWebTokenHandler();
+        var subject = new ClaimsIdentity(new[]
+        {
+            new Claim("username", username),
+            new Claim("roles", "user"),
+            new Claim("jti", Guid.NewGuid().ToString()),
+            new Claim("familyId", (familyId ?? Guid.NewGuid()).ToString()),
+            new Claim("trust", "100")
+        });
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = subject,
+            Issuer = issuer,
+            Audience = audience,
+            Expires = expires ?? DateTime.UtcNow.AddMinutes(30),
+            IssuedAt = issuedAt ?? DateTime.UtcNow,
+            SigningCredentials = new SigningCredentials(signingKey, SecurityAlgorithms.RsaSha256)
+        };
+        return handler.CreateToken(tokenDescriptor);
+    }
+
+    [Fact]
+    public void JwtBasicTests()
+    {
+        var pair = JwtUtils.CreatePair();
+        var publicKey = pair.Key;
+        var privateKey = pair.Value;
+
+        Assert.False(string.IsNullOrEmpty(privateKey.KeyId));
+        Assert.Equal(privateKey.KeyId, publicKey.KeyId);
+        Assert.NotNull(privateKey.Parameters.D); // private exponent - only present on the private key
+        Assert.Null(publicKey.Parameters.D);
+    }
+
+    [Fact]
+    public async Task CreateJwt_ThenValidateJwt_WithGoodData_ReturnsTrue()
+    {
+        var pair = JwtUtils.CreatePair();
+        var jwt = JwtUtils.CreateJwt("testuser", Guid.NewGuid(), pair.Value);
+
+        bool valid = await JwtUtils.ValidateJwt(jwt, pair.Key);
+
+        Assert.True(valid);
+    }
+
+    [Fact]
+    public async Task ValidateJwt_SignedByDifferentKeyPair_ReturnsFalse()
+    {
+        var correctPair = JwtUtils.CreatePair();
+        var wrongPair = JwtUtils.CreatePair();
+        var jwt = BuildJwt(correctPair.Value);
+
+        bool valid = await JwtUtils.ValidateJwt(jwt, wrongPair.Key);
+
+        Assert.False(valid);
+    }
+
+    [Fact]
+    public async Task ValidateJwt_ExpiredToken_ReturnsFalse()
+    {
+        var pair = JwtUtils.CreatePair();
+        var jwt = BuildJwt(pair.Value,
+            issuedAt: DateTime.UtcNow.AddHours(-2),
+            expires: DateTime.UtcNow.AddHours(-1));
+
+        bool valid = await JwtUtils.ValidateJwt(jwt, pair.Key);
+
+        Assert.False(valid);
+    }
+
+    [Fact]
+    public async Task ValidateJwt_WrongIssuer_ReturnsFalse()
+    {
+        var pair = JwtUtils.CreatePair();
+        var jwt = BuildJwt(pair.Value, issuer: "http://evil.example.com");
+
+        bool valid = await JwtUtils.ValidateJwt(jwt, pair.Key);
+
+        Assert.False(valid);
+    }
+
+    [Fact]
+    public async Task ValidateJwt_WrongAudience_ReturnsFalse()
+    {
+        var pair = JwtUtils.CreatePair();
+        var jwt = BuildJwt(pair.Value, audience: "http://someone-else.example.com");
+
+        bool valid = await JwtUtils.ValidateJwt(jwt, pair.Key);
+
+        Assert.False(valid);
+    }
+
+    [Fact]
+    public async Task ValidateJwt_TamperedSignature_ReturnsFalse()
+    {
+        var pair = JwtUtils.CreatePair();
+        var jwt = JwtUtils.CreateJwt("testuser", Guid.NewGuid(), pair.Value);
+        // flip the last character of the signature segment - still well-formed (3 dot-separated
+        // parts), but the signature no longer matches the header+payload
+        char lastChar = jwt[jwt.Length - 1];
+        char replacement = lastChar == 'A' ? 'B' : 'A';
+        var tampered = jwt.Substring(0, jwt.Length - 1) + replacement;
+
+        bool valid = await JwtUtils.ValidateJwt(tampered, pair.Key);
+
+        Assert.False(valid);
+    }
+
+    [Fact]
+    public async Task ValidateJwt_GarbageString_ReturnsFalse()
+    {
+        var pair = JwtUtils.CreatePair();
+
+        bool valid = await JwtUtils.ValidateJwt("not.a.jwt", pair.Key);
+
+        Assert.False(valid);
     }
 }

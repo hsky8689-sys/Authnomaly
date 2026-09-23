@@ -53,7 +53,7 @@ public class ClientsController:ControllerBase
         if (_locationDetector.ComputeDistance(currentCoordinates.crtLatitude!.Value,
                 lastLogin.latitude!.Value,
                 currentCoordinates.crtLongitude!.Value,
-                lastLogin.longitude!.Value) / (deviceData.AttemptTime!.Value.Subtract(lastLogin.timestamp)).Hours >= 1000)
+                lastLogin.longitude!.Value) / (deviceData.AttemptTime!.Value.Subtract(lastLogin.timestamp)).TotalHours >= 1000)
         {
             // trust factor handle not ready by now...
         }
