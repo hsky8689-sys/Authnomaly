@@ -19,7 +19,7 @@ public class TokenBlacklistRepository : ITokenBlacklistStore
             if (reason == BlacklistLevel.NotBlacklisted) throw new ArgumentException("Reasons 1-4 are valid for this type of operation");
             var options = new DistributedCacheEntryOptions
             {
-                AbsoluteExpirationRelativeToNow = new TimeSpan(ttl)
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(ttl)
             };
             await _cache.SetStringAsync(
                 $"blacklist:{jti}", 
@@ -69,7 +69,7 @@ public class TokenBlacklistRepository : ITokenBlacklistStore
     }
     public async Task<bool> IsFamilyRevoked(Guid familyId)
     {
-        return await _cache.GetAsync($"refreshToken:{familyId.ToString()}") != null;
+        return await _cache.GetAsync($"refreshToken:{familyId.ToString()}") == null;
     }
     public async Task<(double? latitude, double? longitude,DateTimeOffset timestamp)> GetLastLocation(string endpoint,string username)
     {

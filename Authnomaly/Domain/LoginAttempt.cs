@@ -46,7 +46,7 @@ public class LoginAttempt : Entity<long>
     public DateTimeOffset? AttemptTime
     {
         get => _attemptTime;
-        set => _attemptTime = value ?? DateTimeOffset.Now;
+        set => _attemptTime = value ?? DateTimeOffset.UtcNow;
     }
     [DefaultValue("N/A")]
     [MaxLength(128)]

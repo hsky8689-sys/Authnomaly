@@ -1,6 +1,7 @@
 ﻿using Authnomaly.Domain;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 
 namespace Authnomaly.Repositories;
 
@@ -18,10 +19,14 @@ public class AuthnomalyDatabaseContext : DbContext,IDataProtectionKeyContext
     }
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        var password = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_PASSWORD")
-            ?? throw new InvalidOperationException("AUTHNOMALY_DB_PASSWORD environment variable is not set.");
-        optionsBuilder.UseNpgsql($"Host=localhost;Database=Authnomaly;Username=postgres;Password={password}");
-        base.OnConfiguring(optionsBuilder);
+        if (!optionsBuilder.IsConfigured)
+        {
+            var password = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_PASSWORD")
+                           ?? throw new InvalidOperationException(
+                               "AUTHNOMALY_DB_PASSWORD environment variable is not set.");
+            optionsBuilder.UseNpgsql($"Host=localhost;Database=Authnomaly;Username=postgres;Password={password}");
+            base.OnConfiguring(optionsBuilder);
+        }
     }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -35,5 +40,8 @@ public class AuthnomalyDatabaseContext : DbContext,IDataProtectionKeyContext
             .Property(u => u.Id)
             .ValueGeneratedOnAdd()
             .UseIdentityColumn();
+        modelBuilder.Entity<User>()
+            .HasIndex(u => u.Username)
+            .IsUnique();
     }
 }

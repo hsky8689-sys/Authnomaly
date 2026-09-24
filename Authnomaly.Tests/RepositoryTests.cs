@@ -3,24 +3,31 @@ using Authnomaly.Repositories;
 using Authnomaly.Repositories.DatabaseRepositories;
 using Authnomaly.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace Authnomaly.Tests;
 
+[Collection("Database")]
 public class RepositoryTests : IDisposable
 {
     private readonly ITestOutputHelper _output;
+    private readonly ServiceProvider _provider;
+    private readonly IServiceScope _scope;
     private AuthnomalyDatabaseContext _context;
     private IUsersRepo _usersRepository;
-
     public RepositoryTests(ITestOutputHelper output)
     {
         _output = output;
-        DbContextOptionsBuilder<AuthnomalyDatabaseContext> options = new DbContextOptionsBuilder<AuthnomalyDatabaseContext>();
-        var password = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_PASSWORD") ?? throw new InvalidOperationException("AUTHNOMALY_DB_PASSWORD environment variable is not set.");;
-        options.UseNpgsql($"Host=localhost;Database=authnomalytest;Username=postgres;Password={password}");
-        _context = new AuthnomalyDatabaseContext(options.Options);
+        var password = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_PASSWORD") ?? throw new InvalidOperationException("AUTHNOMALY_DB_PASSWORD environment variable is not set.");
+        var collection = new ServiceCollection();
+        collection.AddDbContext<AuthnomalyDatabaseContext>(o =>
+            o.UseNpgsql($"Host=localhost;Database=authnomalytest;Username=postgres;Password={password}"));
+        _provider = collection.BuildServiceProvider();
+        // one long-lived scope for the sequential tests; concurrency tests create their own scope per operation
+        _scope = _provider.CreateScope();
+        _context = _scope.ServiceProvider.GetRequiredService<AuthnomalyDatabaseContext>();
         _usersRepository = new UsersRepository(_context);
     }
     // Inserts `count` freshly-generated users straight into the repo (real Add() calls, no mocking)
@@ -71,10 +78,81 @@ public class RepositoryTests : IDisposable
         await DeleteUsersFromRepo(added);
         _context.ChangeTracker.Clear();
         for (long wrongId = firstId; wrongId <= lastId; wrongId++)
-            Assert.True((await _usersRepository.FindById(wrongId)).Id == 0); 
+        {
+            Assert.True((await _usersRepository.FindById(wrongId)).Id == 0);
+            Assert.False(await _usersRepository.Delete(wrongId));
+        }
     }
+
+    [Theory]
+    [InlineData(50)]
+    public async Task UsersRepositoryConcurencyTests(int additionThreads)
+    {
+        int added = additionThreads;
+        try
+        {
+            var addUser = async () =>
+            {
+                try
+                {
+                    using var scope = _provider.CreateScope();
+                    var ctx = scope.ServiceProvider.GetService<AuthnomalyDatabaseContext>();
+                    IUsersRepo repo = new UsersRepository(ctx);
+                    if ((await repo.Add(new User(123133, "", ""))) == 0)
+                    {
+                        Interlocked.Decrement(ref added);
+                    }
+                }
+                catch (DbUpdateException)
+                {
+                    Interlocked.Decrement(ref added); 
+                }
+            };
+            var additionTasks = Enumerable.Repeat(addUser, additionThreads)
+                .Select(u => u.Invoke());
+            await Task.WhenAll(additionTasks);
+            _output.WriteLine(added.ToString());
+            Assert.True(added == 1);
+            _context.ChangeTracker.Clear();
+            Assert.True(await _usersRepository.Delete(123133));
+            Assert.True(await _usersRepository.Add(new User(123133, "", "")) != 0);
+            var deleted = 0;
+            var deleteUser = async () =>
+            {
+                try
+                {
+                    using var scope = _provider.CreateScope();
+                    var ctx = scope.ServiceProvider.GetService<AuthnomalyDatabaseContext>();
+                    IUsersRepo repo = new UsersRepository(ctx);
+                    if (await repo.Delete(123133))
+                    {
+                        Interlocked.Increment(ref deleted);
+                    }
+                }
+                catch (DbUpdateException)
+                {
+                    return;
+                }
+            };
+            var deletionTasks = Enumerable.Repeat(deleteUser, additionThreads)
+                .Select(u => u.Invoke());
+            await Task.WhenAll(deletionTasks);
+            Assert.True(deleted == 1);
+            Assert.True((await _usersRepository.FindById(123133)).Id == 0);
+            Assert.False(await _usersRepository.Delete(123133));
+            _context.ChangeTracker.Clear();
+            Assert.True(await _usersRepository.Add(new User(123133, "ew", "")) != 0);
+            _context.ChangeTracker.Clear();
+            Assert.True((await _usersRepository.Add(new User(123133, "321", ""))) == 0);
+        }
+        finally
+        {
+            await _usersRepository.Delete(123133);
+        }
+}
     public void Dispose()
     {
-        _context.Dispose();
+        _scope.Dispose();
+        _provider.Dispose();
     }
 }

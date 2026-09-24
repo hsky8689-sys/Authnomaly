@@ -2,6 +2,7 @@
 using Authnomaly.Repositories.Interfaces;
 using Authnomaly.Utils;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Authnomaly.Repositories.DatabaseRepositories;
 
@@ -32,7 +33,7 @@ public class CredentialsRepository : ICredentialsRepo
         try
         {
             AuthCredentials found = await FindById(userId);
-            if (!found.Id.Equals(-1))
+            if (!found.Id.Equals(0))
             {
                 var hashResults = Encryption.HashPassword(newPassword);
                 found.PasswordHash = Convert.ToBase64String(hashResults.Hash);
@@ -97,8 +98,13 @@ public class CredentialsRepository : ICredentialsRepo
         { 
             await _context.AddAsync(entity);
             var added = await _context.SaveChangesAsync();
-            return added == 1 ? entity.Id : -1;
+            return added == 1 ? entity.Id : 0;
         }
+        catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            _context.Entry(entity).State = EntityState.Detached;
+            return 0;
+        } 
         catch
         {
             throw;

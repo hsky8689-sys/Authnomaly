@@ -1,5 +1,4 @@
-﻿using System.Security.Cryptography;
-using Authnomaly.Domain;
+﻿using Authnomaly.Domain;
 using Authnomaly.Repositories.Interfaces;
 using Authnomaly.Utils;
 

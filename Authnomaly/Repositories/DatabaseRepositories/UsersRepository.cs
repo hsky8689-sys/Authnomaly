@@ -1,8 +1,7 @@
-﻿using System.Data;
-using Authnomaly.Domain;
+﻿using Authnomaly.Domain;
 using Authnomaly.Repositories.Interfaces;
-using Authnomaly.Utils;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Authnomaly.Repositories.DatabaseRepositories;
 
@@ -20,6 +19,11 @@ public class UsersRepository : IUsersRepo
             await _context.users.AddAsync(entity);
             var addedLines = await _context.SaveChangesAsync();
             return addedLines.Equals(1) ? entity.Id : 0;
+        }
+        catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            _context.Entry(entity).State = EntityState.Detached;
+            return 0;
         }
         catch
         {

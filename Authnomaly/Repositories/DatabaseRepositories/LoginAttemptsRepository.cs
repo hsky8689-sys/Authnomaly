@@ -1,6 +1,7 @@
 ﻿using Authnomaly.Domain;
 using Authnomaly.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Authnomaly.Repositories.DatabaseRepositories;
 
@@ -18,7 +19,7 @@ public class LoginAttemptsRepository : ILoginAttemptsRepo
             var found = await _context.loginAttempts.
                                    Where(la => la.Id.Equals(id)).
                                    FirstOrDefaultAsync();
-            return found is not null ? found : new LoginAttempt(-1);
+            return found is not null ? found : new LoginAttempt(0);
         }
         catch
         {
@@ -44,6 +45,11 @@ public class LoginAttemptsRepository : ILoginAttemptsRepo
             await _context.loginAttempts.AddAsync(entity);
             var added = await _context.SaveChangesAsync();
             return added == 1 ? entity.Id : 0;
+        }
+        catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            _context.Entry(entity).State = EntityState.Detached;
+            return 0;
         }
         catch
         {
