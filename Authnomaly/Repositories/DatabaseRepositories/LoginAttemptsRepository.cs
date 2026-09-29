@@ -56,4 +56,17 @@ public class LoginAttemptsRepository : ILoginAttemptsRepo
             throw;
         }
     }
+    public async Task<IList<LoginAttempt>> FindByUsername(string username)
+    {
+        try
+        {
+            return await _context.loginAttempts.AsNoTracking()
+                .Where(la => la.Username.Equals(username))
+                .ToListAsync();
+        }
+        catch
+        {
+            throw;
+        }
+    }
 }

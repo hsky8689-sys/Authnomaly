@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using Authnomaly.Domain;
 using Authnomaly.Repositories.DatabaseRepositories;
 using Authnomaly.Utils;
-using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace Authnomaly.Tests;
@@ -11,7 +11,6 @@ namespace Authnomaly.Tests;
 public class CredentialsRepositoryTests : IDisposable
 {
     private readonly TestDb _db = new();
-
     // Same order AuthService.Authenticate uses: add the user, then the credentials that point at it
     private static async Task<long> RegisterAsync(TestScope s, string username, string password)
     {
@@ -19,7 +18,7 @@ public class CredentialsRepositoryTests : IDisposable
         long userId = await new UsersRepository(s.Context).Add(user);
         if (userId == 0) return 0;
         var hashed = Encryption.HashPassword(password);
-        var creds = new AuthCredentials(0, username, Convert.ToBase64String(hashed.Hash), user, hashed.Salt);
+        var creds = new AuthCredentials(0, Convert.ToBase64String(hashed.Hash), user, hashed.Salt);
         return await new CredentialsRepository(s.Context).Add(creds) == 0 ? 0 : userId;
     }
 
@@ -51,7 +50,6 @@ public class CredentialsRepositoryTests : IDisposable
             var byId = await repo.FindById(userId);
             Assert.Equal(userId, byUser.Id);
             Assert.Equal(userId, byId.Id);
-            Assert.Equal(name, byUser.Username);
             Assert.Equal(byUser.PasswordHash, byId.PasswordHash);
             Assert.NotEmpty(byUser.Salt);
             Assert.True(Encryption.VerifyPassword("Passw0rd!x", Convert.FromBase64String(byUser.PasswordHash), byUser.Salt));
@@ -75,11 +73,12 @@ public class CredentialsRepositoryTests : IDisposable
         long userId = await RegisterNewUser("OldPassw0rd!");
         try
         {
+            (byte[] newPasswordHash, byte[] newPasswordSalt) newPassData = Encryption.HashPassword("newPasswOrd!"); 
             AuthCredentials before;
             using (var s = _db.NewScope()) before = await new CredentialsRepository(s.Context).FindById(userId);
 
             using (var s = _db.NewScope())
-                Assert.True(await new CredentialsRepository(s.Context).ChangePassword(userId, "NewPassw0rd!"));
+                Assert.True(await new CredentialsRepository(s.Context).ChangePassword(userId, Convert.ToBase64String(newPassData.newPasswordHash),newPassData.newPasswordSalt,before.PasswordHash,before.Salt));
 
             using var s2 = _db.NewScope();
             var after = await new CredentialsRepository(s2.Context).FindById(userId);
@@ -95,7 +94,15 @@ public class CredentialsRepositoryTests : IDisposable
     public async Task ChangePassword_UnknownUser_ReturnsFalse()
     {
         using var s = _db.NewScope();
-        Assert.False(await new CredentialsRepository(s.Context).ChangePassword(-12345, "NewPassw0rd!"));
+        (byte[] newPasswordHash, byte[] newPasswordSalt) newPassData = Encryption.HashPassword("newPasswOrd!");
+        AuthCredentials oldCreds = new AuthCredentials(-12345);
+        oldCreds.PasswordHash = "e1e1312312312";
+        oldCreds.Salt = RandomNumberGenerator.GetBytes(14);
+        Assert.False(await new CredentialsRepository(s.Context).ChangePassword(-12345, 
+            Convert.ToBase64String(newPassData.newPasswordHash),
+            newPassData.newPasswordSalt,
+            oldCreds.PasswordHash,
+            oldCreds.Salt));
     }
 
     [Fact]
@@ -106,9 +113,9 @@ public class CredentialsRepositoryTests : IDisposable
         try
         {
             using (var s = _db.NewScope())
-                Assert.True(await new CredentialsRepository(s.Context).ChangeUsername(userId, newName));
+                Assert.True(await new UsersRepository(s.Context).ChangeUsername(userId, newName));
             using var s2 = _db.NewScope();
-            Assert.Equal(newName, (await new CredentialsRepository(s2.Context).FindById(userId)).Username);
+            Assert.Equal(newName, (await new UsersRepository(s2.Context).FindById(userId)).Username);
         }
         finally { await CleanupUser(userId); }
     }
@@ -117,7 +124,7 @@ public class CredentialsRepositoryTests : IDisposable
     public async Task ChangeUsername_UnknownUser_ReturnsFalse()
     {
         using var s = _db.NewScope();
-        Assert.False(await new CredentialsRepository(s.Context).ChangeUsername(-12345, "whatever"));
+        Assert.False(await new UsersRepository(s.Context).ChangeUsername(-12345, "whatever"));
     }
 
     [Fact]
@@ -186,7 +193,8 @@ public class CredentialsRepositoryTests : IDisposable
         }
     }
 
-    // Many contexts renaming the same credentials at once: no exception, last writer wins, final value is one of the inputs
+    // Many contexts renaming the same credentials at once: no exception,
+    // last writer wins, final value is one of the inputs
     [Theory]
     [InlineData(10)]
     public async Task ConcurrentChangeUsername_SameUser_EndsWithOneOfTheValues(int tasks)
@@ -198,10 +206,10 @@ public class CredentialsRepositoryTests : IDisposable
             await Task.WhenAll(names.Select(n => Task.Run(async () =>
             {
                 using var s = _db.NewScope();
-                await new CredentialsRepository(s.Context).ChangeUsername(userId, n);
+                await new UsersRepository(s.Context).ChangeUsername(userId, n);
             })));
             using var s2 = _db.NewScope();
-            Assert.Contains((await new CredentialsRepository(s2.Context).FindById(userId)).Username, names);
+            Assert.Contains((await new UsersRepository(s2.Context).FindById(userId)).Username, names);
         }
         finally { await CleanupUser(userId); }
     }

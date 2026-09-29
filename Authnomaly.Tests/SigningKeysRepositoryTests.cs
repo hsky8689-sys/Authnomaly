@@ -165,7 +165,7 @@ public class SigningKeysRepositoryTests : IDisposable
     // N simultaneous rotations, each in its own scope (e.g. several app instances). Whatever the interleaving,
     // exactly one key must be current afterwards and every rotation must have stored its key.
     [Theory]
-    [InlineData(5)]
+    [InlineData(10)]
     public async Task ConcurrentRotations_LeaveExactlyOneCurrentKey(int tasks)
     {
         await ClearKeys();

@@ -8,10 +8,12 @@ namespace Authnomaly.Repositories.DatabaseRepositories;
 public class UsersRepository : IUsersRepo
 {
     private readonly AuthnomalyDatabaseContext _context;
+
     public UsersRepository(AuthnomalyDatabaseContext context)
     {
         _context = context;
     }
+
     public async Task<long> Add(User entity)
     {
         try
@@ -20,7 +22,10 @@ public class UsersRepository : IUsersRepo
             var addedLines = await _context.SaveChangesAsync();
             return addedLines.Equals(1) ? entity.Id : 0;
         }
-        catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        catch (DbUpdateException e) when (e.InnerException is PostgresException
+                                          {
+                                              SqlState: PostgresErrorCodes.UniqueViolation
+                                          })
         {
             _context.Entry(entity).State = EntityState.Detached;
             return 0;
@@ -30,42 +35,64 @@ public class UsersRepository : IUsersRepo
             throw;
         }
     }
+
     public async Task<User> FindById(long id)
     {
         try
         {
-            return  (await _context.users.AsNoTracking()
+            return (await _context.users.AsNoTracking()
                 .Where(u => u.Id.Equals(id))
-                .FirstOrDefaultAsync()) ?? new User(0,"","");
+                .FirstOrDefaultAsync()) ?? new User(0, "", "");
         }
         catch
         {
             throw;
-        } 
+        }
     }
+
     public async Task<bool> Delete(long id)
     {
         try
-        { 
-            return await _context.users.Where(u=>u.Id.Equals(id))
-                                       .ExecuteDeleteAsync() == 1;
+        {
+            return await _context.users.Where(u => u.Id.Equals(id))
+                .ExecuteDeleteAsync() == 1;
         }
         catch
         {
             throw;
         }
     }
+
     public async Task<User> FindByUsername(string username)
     {
         try
         {
             return (await _context.users.AsNoTracking()
                 .Where(u => u.Username.Equals(username))
-                .FirstOrDefaultAsync()) ?? new User(0,"","");
+                .FirstOrDefaultAsync()) ?? new User(0, "", "");
         }
         catch
         {
             throw;
+        }
+    }
+
+    public async Task<bool> ChangeUsername(long userId, string newUsername)
+    {
+        try
+        {
+            var oldUser = await _context.users
+                .FromSql($@"SELECT ""Id"",""Username"",""Email"" 
+                            FROM ""Users"" WHERE ""Id"" = {userId}
+                            FOR UPDATE SKIP LOCKED
+            ").SingleOrDefaultAsync();
+            if (oldUser is null) return false;
+            oldUser.Username = newUsername;
+            return await _context.SaveChangesAsync() == 1;
+        }
+        catch (PostgresException pe)
+        {
+            return false;
         }
     }
 }
