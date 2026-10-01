@@ -37,7 +37,7 @@ public class ClientsController:ControllerBase
         var password = loginCredentials["password"];
         LoginAttempt newEntry = DeviceDetails.CollectAttemptData(HttpContext);
         newEntry.Username = username;
-        User? found = await _authService.Login(username, password,newEntry);
+        User found = await _authService.Login(username, password,newEntry);
         if (found.Id == 0) return BadRequest(new { message = "Wrong credentials" });
         var lastSigning = await _jwtService.GetLastPrivateKey();
         var lastPrivate = _protectionApiService.GetPrivateKey(lastSigning);

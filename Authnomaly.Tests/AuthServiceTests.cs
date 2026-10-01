@@ -1,8 +1,11 @@
 ﻿using System.Text.RegularExpressions;
 using Authnomaly.Domain;
+using Authnomaly.Repositories.DatabaseRepositories;
 using Authnomaly.Repositories.Interfaces;
 using Authnomaly.Services;
 using Authnomaly.Utils;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 using Moq;
 using Xunit;
 using Xunit.Abstractions;
@@ -11,17 +14,19 @@ namespace Authnomaly.Tests;
 
 public class AuthServiceTests
 {
+    private readonly IDataProtector _protector;
      private readonly ITestOutputHelper _output;
      private readonly Mock<IUsersRepo> _usersMock;
      private readonly Mock<ICredentialsRepo> _credentialsMock;
      private readonly Mock<ILoginAttemptsRepo> _loginAttemptsMock;
-     private readonly HashSet<LoginAttempt> _loginAttemptsMemoryMock;
+     private HashSet<LoginAttempt> _loginAttemptsMemoryMock;
      private readonly int _knownUsers;
-     
+     private readonly TestDb _db = new(); 
     private readonly AuthService _service;
     public AuthServiceTests(ITestOutputHelper output)
     {
         _knownUsers = 10;
+        _protector = DataProtectionProvider.Create("test-app").CreateProtector("Authnomaly.SigningKeys");
         _output = output;
         _usersMock = new Mock<IUsersRepo>();
         _credentialsMock = new Mock<ICredentialsRepo>();
@@ -92,11 +97,9 @@ public class AuthServiceTests
             _credentialsMock.Setup(x => x.ChangePassword(id,It.IsAny<string>(),It.IsAny<byte[]>(),It.IsAny<string>(),It.IsAny<byte[]>())).ReturnsAsync((long _id,
                 string _newPassword,byte[] salt,string oldPassword,byte[] oldSalt) =>
             {
-                 //asuming a write would take more than just a read 
-                //by id (which,being a primary key has a default index)
+                
                 userCredentials.PasswordHash = _newPassword;
                 return true;
-                //return !Equals(_newPassword, $"pass{_id}");
             });
             for (int j = 0; j <= i % 3; j++)
             {
@@ -109,7 +112,7 @@ public class AuthServiceTests
                 idLoginAttempt++;
             }
         }
-        _service = new AuthService(_usersMock.Object,_credentialsMock.Object,_loginAttemptsMock.Object,new Mock<ISigningKeyStore>().Object);
+        _service = new AuthService(_usersMock.Object,_credentialsMock.Object,_loginAttemptsMock.Object,new Mock<ISigningKeyStore>().Object,new XunitLogger<AuthService>(_output));
     }
     [Fact]
     public async Task BasicLoginTests()
@@ -224,5 +227,40 @@ public class AuthServiceTests
                 }
         _output.WriteLine(counter.ToString());
         Assert.True(counter == 1);
+    }
+    [Theory]
+    [InlineData(200,false)]
+    public async Task ConcurrentSignupnWithSameUsernameTests(int threads,bool fromSameContext)
+    {
+        using var context = _db.NewScope();
+        var singleContextMockService = MakeUnmockedService(context);
+        try
+        {
+            const string username = "user2313";
+            const string password = "oewqeqwe";
+            const string email = "mail@scs.carrefour.ro";
+            int failsCounter = 0;
+            var taskList = fromSameContext
+                ? Enumerable.Range(0, threads).Select(_ => singleContextMockService.Authenticate(username, password, email))
+                : Enumerable.Range(0, threads).Select(_ => MakeUnmockedService(_db.NewScope()).Authenticate(username, password, email));
+            foreach (var valueTuple in await Task.WhenAll(taskList))
+            {
+                _output.WriteLine(valueTuple.authenticated+"\n");
+                failsCounter += valueTuple.authenticated == false ? 1 : 0;
+            }
+            Assert.Equal(threads - 1, failsCounter);
+        }
+        finally
+        {
+            User? last = await context.Context.users.OrderByDescending(u => u.Id).FirstOrDefaultAsync();
+            _output.WriteLine((await context.Context.users.Where(u => u.Id == last!.Id).ExecuteDeleteAsync()).ToString());
+        }
+    }
+    internal AuthService MakeUnmockedService(TestScope scope)
+    {
+        return new AuthService(new UsersRepository(scope.Context,new XunitLogger<UsersRepository>(_output)),
+                                              new CredentialsRepository(scope.Context,new XunitLogger<UsersRepository>(_output)),
+                                              new LoginAttemptsRepository(scope.Context),
+                                              new SigningKeysRepository(scope.Context,new DataProtectionAPIService(_protector)),new XunitLogger<AuthService>(_output));
     }
 }

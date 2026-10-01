@@ -9,32 +9,35 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using StackExchange.Redis;
 
-try
-{
-    DbContextOptionsBuilder<AuthnomalyDatabaseContext> options = new DbContextOptionsBuilder<AuthnomalyDatabaseContext>();
-    
-    using (var db = new AuthnomalyDatabaseContext(options.Options))
+public class MainClass{
+    public static void Main(string[] args)
+    { 
+        try
     {
-        db.Database.Migrate();
+        DbContextOptionsBuilder<AuthnomalyDatabaseContext> options = new DbContextOptionsBuilder<AuthnomalyDatabaseContext>();
+        using (var db = new AuthnomalyDatabaseContext(options.Options))
+        {
+            db.Database.Migrate();
+        }
     }
-}
-catch (Exception e)
-{
-    Console.WriteLine($"Eroare la rulare migrari: {e.Message}");
-}
+    catch (Exception e)
+    {
+        Console.WriteLine($"Eroare la rulare migrari: {e.Message}");
+    }
 var builder = WebApplication.CreateBuilder(args);
 var password = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_PASSWORD") ?? throw new InvalidOperationException("AUTHNOMALY_DB_PASSWORD environment variable is not set.");
 builder.Services.AddDbContext<AuthnomalyDatabaseContext>(options =>
     options.UseNpgsql($"Host=localhost;Database=Authnomaly;Username=postgres;Password={password}"));
 builder.Services.AddScoped<ISigningKeyStore,SigningKeysRepository>();
 builder.Services.AddScoped<ISigningKeyProtection, DataProtectionAPIService>();
+builder.Logging.AddLog4Net("log4net.config");
 builder.Services.AddScoped<DataProtectionAPIService>();
 builder.Services.AddScoped<IUsersRepo, UsersRepository>();
 builder.Services.AddScoped<ICredentialsRepo, CredentialsRepository>();
 builder.Services.AddScoped<ILoginAttemptsRepo, LoginAttemptsRepository>();
-builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<ILocationDetector,LocationDetectionGepIp>();
 builder.Services.AddScoped<ITokenBlacklistStore, TokenBlacklistRepository>();
+builder.Services.AddScoped<AuthService>();
 var redis = ConnectionMultiplexer.Connect("localhost");
 builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
 builder.Services.AddStackExchangeRedisCache(options =>
@@ -48,6 +51,10 @@ builder.Services.AddDataProtection().PersistKeysToDbContext<AuthnomalyDatabaseCo
 var app = builder.Build();
 app.MapControllers();
 app.Run();
+}
+//var location = LocationDetection.GetStandardLocation(IPAddress.Parse("184.86.103.213"));
+//Console.WriteLine($"city:{location.city} country{location.country}");
+}
 public class AuthnomalyDatabaseContextFactory : IDesignTimeDbContextFactory<AuthnomalyDatabaseContext>
 {
     public AuthnomalyDatabaseContext CreateDbContext(string[] args)
@@ -56,5 +63,3 @@ public class AuthnomalyDatabaseContextFactory : IDesignTimeDbContextFactory<Auth
         return new AuthnomalyDatabaseContext(options.Options);
     }
 }
-//var location = LocationDetection.GetStandardLocation(IPAddress.Parse("184.86.103.213"));
-//Console.WriteLine($"city:{location.city} country{location.country}");

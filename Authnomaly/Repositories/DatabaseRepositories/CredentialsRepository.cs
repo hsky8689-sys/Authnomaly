@@ -1,4 +1,5 @@
-﻿using Authnomaly.Domain;
+﻿using System.Text;
+using Authnomaly.Domain;
 using Authnomaly.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -7,10 +8,12 @@ namespace Authnomaly.Repositories.DatabaseRepositories;
 
 public class CredentialsRepository : ICredentialsRepo
 {
+    private readonly ILogger _logger;
     private readonly AuthnomalyDatabaseContext _context;
-    public CredentialsRepository(AuthnomalyDatabaseContext context)
+    public CredentialsRepository(AuthnomalyDatabaseContext context,ILogger logger)
     {
         _context = context;
+        _logger = logger;
     }
     public async Task<AuthCredentials> FindByUserId(long userId)
     {
@@ -76,17 +79,19 @@ public class CredentialsRepository : ICredentialsRepo
     {
         try
         { 
-            await _context.AddAsync(entity);
-            var added = await _context.SaveChangesAsync();
-            return added == 1 ? entity.Id : 0;
+            return await _context.Database
+                .SqlQuery<long>($@"SELECT add_user_credentials({entity.Id},{entity.PasswordHash},{entity.Salt}) AS ""Value""")
+                .SingleOrDefaultAsync();
         }
         catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             _context.Entry(entity).State = EntityState.Detached;
+            _logger.LogDebug("unique key violation\n");
             return 0;
         } 
-        catch
+        catch(Exception e)
         {
+            _logger.LogDebug($" error {e.Message} caught\n");
             throw;
         }
     }
