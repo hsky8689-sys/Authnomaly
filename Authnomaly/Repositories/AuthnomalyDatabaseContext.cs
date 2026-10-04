@@ -36,6 +36,10 @@ public class AuthnomalyDatabaseContext : DbContext,IDataProtectionKeyContext
             .HasForeignKey<AuthCredentials>(a => a.Id);
         modelBuilder.Entity<SigningKey>()
             .HasIndex(s=>s.CreatedAt);
+        modelBuilder.Entity<SigningKey>()
+            .HasIndex(s => s.IsCurrent)
+            .IsUnique()
+            .HasFilter("\"IsCurrent\"= true");
         modelBuilder.Entity<User>()
             .Property(u => u.Id)
             .ValueGeneratedOnAdd()

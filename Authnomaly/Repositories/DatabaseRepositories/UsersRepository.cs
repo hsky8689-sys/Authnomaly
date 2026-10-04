@@ -22,9 +22,6 @@ public class UsersRepository : IUsersRepo
             return await _context.Database
                 .SqlQuery<long>($@"SELECT add_user({entity.Username},{entity.Email}) AS ""Value""")
                 .SingleOrDefaultAsync();
-            await _context.users.AddAsync(entity);
-            var addedLines = await _context.SaveChangesAsync();
-            return addedLines == 1 ? entity.Id : 0;
         }
         catch (PostgresException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {

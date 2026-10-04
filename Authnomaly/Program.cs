@@ -52,8 +52,6 @@ var app = builder.Build();
 app.MapControllers();
 app.Run();
 }
-//var location = LocationDetection.GetStandardLocation(IPAddress.Parse("184.86.103.213"));
-//Console.WriteLine($"city:{location.city} country{location.country}");
 }
 public class AuthnomalyDatabaseContextFactory : IDesignTimeDbContextFactory<AuthnomalyDatabaseContext>
 {

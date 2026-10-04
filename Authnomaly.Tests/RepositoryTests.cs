@@ -8,7 +8,6 @@ using Xunit;
 using Xunit.Abstractions;
 
 namespace Authnomaly.Tests;
-/*
 [Collection("Database")]
 public class RepositoryTests : IDisposable
 {
@@ -156,4 +155,3 @@ public class RepositoryTests : IDisposable
         _provider.Dispose();
     }
 }
-*/

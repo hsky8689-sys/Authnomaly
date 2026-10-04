@@ -19,26 +19,41 @@ public class JwtService
     {
         var last = await _securityKeysRepo.GetLastActivePair();
         if (last.Id != 0) return last;
-        var pair = JwtUtils.CreatePair();
-        return 
-            await _securityKeysRepo.RotateKeyValuePair(pair.Key,pair.Value) 
-            ? 
-            await _securityKeysRepo.GetLastActivePair() 
-            : new SigningKey(0);
+        return await CreateFirstSigningKey();
     }
     public async Task<List<SigningKey>> GetActiveSigningKeys()
     {
         var active = await _securityKeysRepo.GetCurrentActiveKeysAsync();
         if (active.Count == 0)
         {
-            var activeToken = JwtUtils.CreatePair();
-            if (await _securityKeysRepo.RotateKeyValuePair(activeToken.Key, activeToken.Value))
-            {
-                return await _securityKeysRepo.GetCurrentActiveKeysAsync();
-            }
-            return new List<SigningKey>();
+            await CreateFirstSigningKey();
+            return await _securityKeysRepo.GetCurrentActiveKeysAsync();
         }
         return active;
+    }
+    // No current key: only insert, never deactivate. If a concurrent caller inserted first,
+    // the insert fails on the unique index and we read the key it created.
+    private async Task<SigningKey> CreateFirstSigningKey()
+    {
+        var pair = JwtUtils.CreatePair();
+        await _securityKeysRepo.AddKeyValuePair(pair.Key, pair.Value);
+        return await _securityKeysRepo.GetLastActivePair();
+    }
+    // Deactivate + insert run in one transaction. If a concurrent call wins the partial unique index,
+    // our insert fails, the transaction is rolled back (old key stays as the other call left it)
+    // and we return the key that is current now.
+    public async Task<SigningKey> RotateSigningKey()
+    {
+        var pair = JwtUtils.CreatePair();
+        await using (var transaction = await _securityKeysRepo.BeginTransactionAsync())
+        {
+            if (await _securityKeysRepo.RotateKeyValuePair(pair.Key, pair.Value))
+            {
+                await transaction.CommitAsync();
+            }
+            // not committed -> disposing the transaction rolls it back
+        }
+        return await _securityKeysRepo.GetLastActivePair();
     }
     public async Task SetCurrentFamilyJti(Guid familyId, string jti, TimeSpan ttl)
     {

@@ -15,6 +15,7 @@ using Xunit.Abstractions;
 
 namespace Authnomaly.Tests;
 
+[Collection("Database")]
 public class JwtServiceTests
 {
     private readonly ITestOutputHelper _output;

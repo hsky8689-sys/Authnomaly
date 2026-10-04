@@ -1,4 +1,4 @@
-﻿using Authnomaly.Repositories.Interfaces;
+﻿using Authnomaly.Services;
 
 namespace Authnomaly.Utils;
 
@@ -15,9 +15,8 @@ public sealed class KeyPairRotationService : BackgroundService
         do
         {
             using var scope = _scopeFactory.CreateScope();
-            var keyStore = scope.ServiceProvider.GetRequiredService<ISigningKeyStore>();
-            var newPair = JwtUtils.CreatePair();
-            await keyStore.RotateKeyValuePair(newPair.Key, newPair.Value);
+            var jwtService = scope.ServiceProvider.GetRequiredService<JwtService>();
+            await jwtService.RotateSigningKey();
         } while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 }

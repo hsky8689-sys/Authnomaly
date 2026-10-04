@@ -1,4 +1,5 @@
 ﻿using Authnomaly.Domain;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Authnomaly.Repositories.Interfaces;
@@ -8,6 +9,8 @@ public interface ISigningKeyStore
 {
     Task<List<SigningKey>> GetCurrentActiveKeysAsync();
     Task<bool> RotateKeyValuePair(RsaSecurityKey publicKey,RsaSecurityKey privateKey);
+    Task<bool> AddKeyValuePair(RsaSecurityKey publicKey,RsaSecurityKey privateKey);
     Task<SigningKey> GetLastActivePair();
     Task CleanupExpiredKeys();
+    Task<IDbContextTransaction> BeginTransactionAsync();
 }

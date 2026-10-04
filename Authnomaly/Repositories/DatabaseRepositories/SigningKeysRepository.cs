@@ -3,7 +3,9 @@ using Authnomaly.Repositories.Interfaces;
 using Authnomaly.Services;
 using Authnomaly.Utils;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 
 namespace Authnomaly.Repositories.DatabaseRepositories;
 
@@ -24,17 +26,37 @@ public class SigningKeysRepository : ISigningKeyStore
     }
     public async Task<bool> RotateKeyValuePair(RsaSecurityKey publicKey, RsaSecurityKey privateKey)
     {
-        var contextSet = _context.SigningKeys;
-        await contextSet.Where(k => k.IsCurrent)
-                         .ExecuteUpdateAsync(
-                             setters=>setters.SetProperty(k=>k.IsCurrent,k=>false)
-                                            );
-        var publicPem = JwtUtils.ExportPublicKeyPem(publicKey);
-        var privatePem = JwtUtils.ExportPrivateKeyPem(privateKey);
-        var encryptedPrivate = _protection.Encrypt(privatePem);
-        SigningKey key = new SigningKey(0, publicKey.KeyId, publicPem, encryptedPrivate);
-        await contextSet.AddAsync(key);
-        return (await _context.SaveChangesAsync()) == 1;
+        await _context.SigningKeys.Where(k => k.IsCurrent)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(k => k.IsCurrent, k => false)
+            );
+        return await AddKeyValuePair(publicKey, privateKey);
+    }
+    // insert only: false when another key is already current (partial unique index on IsCurrent)
+    public async Task<bool> AddKeyValuePair(RsaSecurityKey publicKey, RsaSecurityKey privateKey)
+    {
+        try
+        {
+            var contextSet = _context.SigningKeys;
+            var publicPem = JwtUtils.ExportPublicKeyPem(publicKey);
+            var privatePem = JwtUtils.ExportPrivateKeyPem(privateKey);
+            var encryptedPrivate = _protection.Encrypt(privatePem);
+            SigningKey key = new SigningKey(0, publicKey.KeyId, publicPem, encryptedPrivate);
+            await contextSet.AddAsync(key);
+            return (await _context.SaveChangesAsync()) == 1;
+        }
+        catch (DbUpdateException e) when (e.InnerException is PostgresException
+                                          {
+                                              SqlState: PostgresErrorCodes.UniqueViolation
+                                          })
+        {
+            // the failed key stays tracked as Added, drop it so a later SaveChanges doesn't retry the insert
+            _context.ChangeTracker.Clear();
+            return false;
+        }
+    }
+    public async Task<IDbContextTransaction> BeginTransactionAsync()
+    {
+        return await _context.Database.BeginTransactionAsync();
     }
     public async Task<SigningKey> GetLastActivePair()
     {

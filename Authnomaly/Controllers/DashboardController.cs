@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Authnomaly.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [Consumes("application/json")]
