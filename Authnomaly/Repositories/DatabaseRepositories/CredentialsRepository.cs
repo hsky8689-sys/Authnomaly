@@ -8,12 +8,10 @@ namespace Authnomaly.Repositories.DatabaseRepositories;
 
 public class CredentialsRepository : ICredentialsRepo
 {
-    private readonly ILogger _logger;
     private readonly AuthnomalyDatabaseContext _context;
-    public CredentialsRepository(AuthnomalyDatabaseContext context,ILogger logger)
+    public CredentialsRepository(AuthnomalyDatabaseContext context)
     {
         _context = context;
-        _logger = logger;
     }
     public async Task<AuthCredentials> FindByUserId(long userId)
     {
@@ -86,12 +84,10 @@ public class CredentialsRepository : ICredentialsRepo
         catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             _context.Entry(entity).State = EntityState.Detached;
-            _logger.LogDebug("unique key violation\n");
             return 0;
         } 
         catch(Exception e)
         {
-            _logger.LogDebug($" error {e.Message} caught\n");
             throw;
         }
     }

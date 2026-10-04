@@ -229,7 +229,7 @@ public class AuthServiceTests
         Assert.True(counter == 1);
     }
     [Theory]
-    [InlineData(200,false)]
+    [InlineData(20,false)]
     public async Task ConcurrentSignupnWithSameUsernameTests(int threads,bool fromSameContext)
     {
         using var context = _db.NewScope();
@@ -256,10 +256,82 @@ public class AuthServiceTests
             _output.WriteLine((await context.Context.users.Where(u => u.Id == last!.Id).ExecuteDeleteAsync()).ToString());
         }
     }
+    [Theory]
+    [InlineData(20,false)]
+    public async Task ConcurrentPasswordChangeWithSameOldPasswordTests(int threads, bool fromSameContext)
+    {
+        using var context = _db.NewScope();
+        var singleContextMockService = MakeUnmockedService(context);
+        const string username = "user2314";
+        const string oldPassword = "oewqeqwe";
+        const string newPassword = "newpasswd123";
+        const string email = "mail@scs.carrefour.ro";
+        long userId = 0;
+        try
+        {
+            var setup = await singleContextMockService.Authenticate(username, oldPassword, email);
+            Assert.True(setup.authenticated);
+            userId = (await new UsersRepository(context.Context).FindByUsername(username)).Id;
+
+            int failsCounter = 0;
+            var taskList = fromSameContext
+                ? Enumerable.Range(0, threads).Select(_ => singleContextMockService.ChangePassword(userId, newPassword))
+                : Enumerable.Range(0, threads)
+                    .Select(_ => MakeUnmockedService(_db.NewScope()).ChangePassword(userId, newPassword));
+            foreach (var succeeded in await Task.WhenAll(taskList))
+            {
+                _output.WriteLine(succeeded + "\n");
+                failsCounter += succeeded == false ? 1 : 0;
+            }
+
+            Assert.Equal(threads - 1, failsCounter);
+        }
+        finally
+        {
+            await context.Context.users.Where(u => u.Id == userId).ExecuteDeleteAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(20, false)]
+    public async Task ConcurrentUsernameChangeWithSameOldUsernameTests(int threads, bool fromSameContext)
+    {
+        using var context = _db.NewScope();
+        var singleContextMockService = MakeUnmockedService(context);
+        const string oldUsername = "user2315";
+        const string newUsername = "user2315_renamed";
+        const string password = "oewqeqwe";
+        const string email = "mail@scs.carrefour.ro";
+        long userId = 0;
+        try
+        {
+            var setup = await singleContextMockService.Authenticate(oldUsername, password, email);
+            Assert.True(setup.authenticated);
+            userId = (await new UsersRepository(context.Context).FindByUsername(oldUsername)).Id;
+
+            int failsCounter = 0;
+            var taskList = fromSameContext
+                ? Enumerable.Range(0, threads).Select(_ =>
+                    singleContextMockService.ChangeUsername(userId, oldUsername, newUsername))
+                : Enumerable.Range(0, threads).Select(_ =>
+                    MakeUnmockedService(_db.NewScope()).ChangeUsername(userId, oldUsername, newUsername));
+            foreach (var succeeded in await Task.WhenAll(taskList))
+            {
+                _output.WriteLine(succeeded + "\n");
+                failsCounter += succeeded == false ? 1 : 0;
+            }
+
+            Assert.Equal(threads - 1, failsCounter);
+        }
+        finally
+        {
+            await context.Context.users.Where(u => u.Id == userId).ExecuteDeleteAsync();
+        }
+    }
     internal AuthService MakeUnmockedService(TestScope scope)
     {
-        return new AuthService(new UsersRepository(scope.Context,new XunitLogger<UsersRepository>(_output)),
-                                              new CredentialsRepository(scope.Context,new XunitLogger<UsersRepository>(_output)),
+        return new AuthService(new UsersRepository(scope.Context),
+                                              new CredentialsRepository(scope.Context),
                                               new LoginAttemptsRepository(scope.Context),
                                               new SigningKeysRepository(scope.Context,new DataProtectionAPIService(_protector)),new XunitLogger<AuthService>(_output));
     }

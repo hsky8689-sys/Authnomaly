@@ -4,6 +4,7 @@ using Authnomaly.Repositories.Interfaces;
 using Authnomaly.Services;
 using Authnomaly.Utils;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 
@@ -11,6 +12,7 @@ namespace Authnomaly.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Consumes("application/json")]
 public class ClientsController:ControllerBase
 {
     private readonly AuthService _authService;
@@ -31,10 +33,12 @@ public class ClientsController:ControllerBase
         _locationDetector = detector;
     }
     [HttpPost("login")]
-    public async Task<IActionResult> HandleLogin([FromBody] IDictionary<string,string> loginCredentials)
+    public async Task<IActionResult> HandleLogin([FromBody] LoginRequest loginCredentials)
     {
-        var username = loginCredentials["username"];
-        var password = loginCredentials["password"];
+        var username = loginCredentials.Username;
+        if (username.Equals("")) return BadRequest(new { message = "Username cannot be empty" });
+        var password = loginCredentials.Password;
+        if (password.Equals("")) return BadRequest(new { message = "Password cannot be empty" });
         LoginAttempt newEntry = DeviceDetails.CollectAttemptData(HttpContext);
         newEntry.Username = username;
         User found = await _authService.Login(username, password,newEntry);
@@ -60,11 +64,11 @@ public class ClientsController:ControllerBase
         return Ok(new {token=jwt,message=$"Login successful for user {found.Username}"});
     }
     [HttpPost("register")]
-    public async Task<IActionResult> HandleReqister([FromBody] IDictionary<string,string> registerData)
+    public async Task<IActionResult> HandleReqister([FromBody] RegisterRequest registerData)
     {
-        var username = registerData["username"];
-        var password = registerData["password"];
-        var email = registerData["email"];
+        var username = registerData.Username;
+        var password = registerData.Password;
+        var email = registerData.Email;
         var registered = await _authService.Authenticate(username, password, email);
         return registered.authenticated 
                 ? Ok(new { message = "User was succesfully created" })

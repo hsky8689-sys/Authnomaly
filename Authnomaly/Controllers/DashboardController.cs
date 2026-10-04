@@ -9,6 +9,7 @@ namespace Authnomaly.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Consumes("application/json")]
 public class DashboardController:ControllerBase
 {
     private readonly JwtService _jwtService;

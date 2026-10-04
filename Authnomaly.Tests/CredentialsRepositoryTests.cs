@@ -6,7 +6,7 @@ using Authnomaly.Utils;
 using Xunit;
 
 namespace Authnomaly.Tests;
-/*
+
 [Collection("Database")]
 public class CredentialsRepositoryTests : IDisposable
 {
@@ -35,6 +35,12 @@ public class CredentialsRepositoryTests : IDisposable
         await new UsersRepository(s.Context).Delete(userId);
     }
 
+    private async Task<User> GetById(long id)
+    {
+        using var s = _db.NewScope();
+        return await new UsersRepository(s.Context).FindById(id);
+    }
+    
     [Fact]
     public async Task Add_ThenFindByUserId_AndFindById_ReturnSameData()
     {
@@ -113,7 +119,11 @@ public class CredentialsRepositoryTests : IDisposable
         try
         {
             using (var s = _db.NewScope())
-                Assert.True(await new UsersRepository(s.Context).ChangeUsername(userId, newName));
+            {
+                var user = await new UsersRepository(s.Context).FindById(userId); 
+                Assert.True(await new UsersRepository(s.Context).ChangeUsername(userId, user.Username,newName));
+            }
+
             using var s2 = _db.NewScope();
             Assert.Equal(newName, (await new UsersRepository(s2.Context).FindById(userId)).Username);
         }
@@ -124,7 +134,7 @@ public class CredentialsRepositoryTests : IDisposable
     public async Task ChangeUsername_UnknownUser_ReturnsFalse()
     {
         using var s = _db.NewScope();
-        Assert.False(await new UsersRepository(s.Context).ChangeUsername(-12345, "whatever"));
+        Assert.False(await new UsersRepository(s.Context).ChangeUsername(-12345, "whatever","idc"));
     }
 
     [Fact]
@@ -188,7 +198,7 @@ public class CredentialsRepositoryTests : IDisposable
         finally
         {
             using var s = _db.NewScope();
-            var user = await new UsersRepository(s.Context,).FindByUsername(name);
+            var user = await new UsersRepository(s.Context).FindByUsername(name);
             if (user.Id != 0) await new UsersRepository(s.Context).Delete(user.Id);
         }
     }
@@ -206,7 +216,8 @@ public class CredentialsRepositoryTests : IDisposable
             await Task.WhenAll(names.Select(n => Task.Run(async () =>
             {
                 using var s = _db.NewScope();
-                await new UsersRepository(s.Context).ChangeUsername(userId, n);
+                var user = await new UsersRepository(s.Context).FindById(userId);
+                await new UsersRepository(s.Context).ChangeUsername(userId, user.Username,n);
             })));
             using var s2 = _db.NewScope();
             Assert.Contains((await new UsersRepository(s2.Context).FindById(userId)).Username, names);
@@ -216,4 +227,3 @@ public class CredentialsRepositoryTests : IDisposable
 
     public void Dispose() => _db.Dispose();
 }
-*/

@@ -54,8 +54,6 @@ public class JwtService
     {
         if(endpoint.Length == 0) return default;
         if (username.Length == 0) return default;
-        if (endpoint.Equals("login")) return default;
-        if (endpoint.Equals("register")) return default;
         return await _tokenKeyStoreRepo.GetLastLocation(endpoint, username);
     }
     public async Task<bool> InvalidateTokenFamily(string jti,BlacklistLevel reason)

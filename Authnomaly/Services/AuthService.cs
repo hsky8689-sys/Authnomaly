@@ -1,6 +1,5 @@
 ﻿using System.Text;
 using System.Transactions;
-using System.Xml;
 using Authnomaly.Domain;
 using Authnomaly.Repositories.Interfaces;
 using Authnomaly.Utils;

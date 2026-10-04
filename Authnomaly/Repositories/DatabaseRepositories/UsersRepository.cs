@@ -8,13 +8,11 @@ namespace Authnomaly.Repositories.DatabaseRepositories;
 
 public class UsersRepository : IUsersRepo
 {
-    private readonly ILogger _logger;
     private readonly AuthnomalyDatabaseContext _context;
 
-    public UsersRepository(AuthnomalyDatabaseContext context,ILogger logger)
+    public UsersRepository(AuthnomalyDatabaseContext context)
     {
         _context = context;
-        _logger = logger;
     }
 
     public async Task<long> Add(User entity)
@@ -31,14 +29,12 @@ public class UsersRepository : IUsersRepo
         catch (PostgresException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
             _context.Entry(entity).State = EntityState.Detached;
-            _logger.LogError($"{e.InnerException.Message} from users repository");
             return 0;
         }
         catch (SystemException e) when (e.InnerException is ArgumentNullException | 
                                   e.InnerException is InvalidOperationException |
                                   e.InnerException is OperationCanceledException)
         {
-            _logger.LogError($"{e.InnerException?.Message} from users repository");
             //_context.Entry(entity).State = EntityState.Detached; 
             return 0;
         }
