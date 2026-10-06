@@ -4,7 +4,6 @@ using Authnomaly.Repositories.Interfaces;
 using Authnomaly.Services;
 using Authnomaly.Utils;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 
@@ -19,29 +18,30 @@ public class ClientsController:ControllerBase
     private readonly JwtService _jwtService;
     private readonly DataProtectionAPIService _protectionApiService;
     private readonly IConnectionMultiplexer _redis;
-    private readonly ILocationDetector _locationDetector;
+    private readonly DeviceDetails _deviceDetails;
     public ClientsController(AuthService authService,
                              JwtService jwtService,
                              DataProtectionAPIService protectionApiService,
                              IConnectionMultiplexer redis,
-                             ILocationDetector detector)
+                             DeviceDetails deviceDetails)
     {
         _authService = authService;
         _jwtService = jwtService;
         _protectionApiService = protectionApiService;
         _redis = redis;
-        _locationDetector = detector;
+        _deviceDetails = deviceDetails;
     }
     [HttpPost("login")]
-    public async Task<IActionResult> HandleLogin([FromBody] LoginRequest loginCredentials)
+    public async Task<IActionResult> HandleLogin([FromBody] IDictionary<string,string> loginCredentials)
     {
-        var username = loginCredentials.Username;
+        var username = loginCredentials["Username"];
         if (username.Equals("")) return BadRequest(new { message = "Username cannot be empty" });
-        var password = loginCredentials.Password;
+        var password = loginCredentials["Password"];
         if (password.Equals("")) return BadRequest(new { message = "Password cannot be empty" });
         LoginAttempt newEntry = DeviceDetails.CollectAttemptData(HttpContext);
         newEntry.Username = username;
         User found = await _authService.Login(username, password,newEntry);
+        Console.WriteLine($"Found user id:{found.Id}");
         if (found.Id == 0) return BadRequest(new { message = "Wrong credentials" });
         var lastSigning = await _jwtService.GetLastPrivateKey();
         var lastPrivate = _protectionApiService.GetPrivateKey(lastSigning);
@@ -53,8 +53,9 @@ public class ClientsController:ControllerBase
             return Ok(new {token=jwt,message=$"Login successful for user {found.Username}"}); 
         }
         var deviceData = DeviceDetails.CollectAttemptData(HttpContext);
-        (double? crtLatitude, double? crtLongitude) currentCoordinates = _locationDetector.GetCoordinates(deviceData.IpAddress!);
-        if (_locationDetector.ComputeDistance(currentCoordinates.crtLatitude!.Value,
+        var detector = _deviceDetails.LocationDetector;
+        (double? crtLatitude, double? crtLongitude) currentCoordinates = detector.GetCoordinates(deviceData.IpAddress!);
+        if (detector.ComputeDistance(currentCoordinates.crtLatitude!.Value,
                 lastLogin.latitude!.Value,
                 currentCoordinates.crtLongitude!.Value,
                 lastLogin.longitude!.Value) / (deviceData.AttemptTime!.Value.Subtract(lastLogin.timestamp)).TotalHours >= 1000)
@@ -134,7 +135,9 @@ public class ClientsController:ControllerBase
                 await _jwtService.InvalidateTokenFamily(jti, BlacklistLevel.AnomalyDetected);
                 return BadRequest(new { message = "Suspicious request blocked,could not detect IP adress" });
             }
-            var coordinates = _locationDetector.GetCoordinates(adress);
+
+            var detector = _deviceDetails.LocationDetector;
+            var coordinates = detector.GetCoordinates(adress);
             if (coordinates.Latitude is null || coordinates.Longitude is null)
             {
                 await transaction.ExecuteAsync();
@@ -142,7 +145,7 @@ public class ClientsController:ControllerBase
             }
             double newLat = coordinates.Latitude.Value;
             double newLon = coordinates.Longitude.Value;
-            bool okDistance = _locationDetector.ComputeDistance(newLat,
+            bool okDistance = detector.ComputeDistance(newLat,
                 lastKnownLat,
                 newLon,
                 lastKnownLon

@@ -1,3 +1,4 @@
+using Authnomaly.Middlewares.RateLimiting;
 using Authnomaly.Repositories;
 using Authnomaly.Repositories.DatabaseRepositories;
 using Authnomaly.Repositories.Interfaces;
@@ -36,12 +37,15 @@ builder.Services.AddScoped<IUsersRepo, UsersRepository>();
 builder.Services.AddScoped<ICredentialsRepo, CredentialsRepository>();
 builder.Services.AddScoped<ILoginAttemptsRepo, LoginAttemptsRepository>();
 builder.Services.AddScoped<ILocationDetector,LocationDetectionGepIp>();
+builder.Services.AddScoped<DeviceDetails>();
 builder.Services.AddScoped<ITokenBlacklistStore, TokenBlacklistRepository>();
 builder.Services.AddScoped<AuthService>();
 var redis = ConnectionMultiplexer.Connect("localhost");
 builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
 builder.Services.AddStackExchangeRedisCache(options =>
     options.ConnectionMultiplexerFactory = () => Task.FromResult<IConnectionMultiplexer>(redis));
+builder.Services.AddScoped<IRateLimitter,FixedWindowRateLimitter>();
+builder.Services.AddScoped<FixedWindowRateLimitter>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<JwtService>();
 builder.Services.AddControllers();
@@ -50,6 +54,7 @@ builder.Services.AddHostedService<CleanupSecurityKeysService>();
 builder.Services.AddDataProtection().PersistKeysToDbContext<AuthnomalyDatabaseContext>();
 var app = builder.Build();
 app.MapControllers();
+app.UseMiddleware<EndpointFilter>();
 app.Run();
 }
 }

@@ -6,6 +6,10 @@ namespace Authnomaly.Utils;
 public class DeviceDetails
 {
     private static ILocationDetector _locationDetector;
+    public ILocationDetector LocationDetector
+    {
+        get => _locationDetector; 
+    }
     public DeviceDetails(ILocationDetector locationDetector)
     {
         _locationDetector = locationDetector;
