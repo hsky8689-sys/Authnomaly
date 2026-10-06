@@ -4,10 +4,6 @@ namespace Authnomaly.Middlewares.RateLimiting;
 
 public class FixedWindowRateLimitter : IRateLimitter
 {
-    /*
-     * Key format : URL : LEFT TRIES
-     * At a given seconds interval: all the stored keys are being reseted to their default values
-     */
     private readonly IDatabase _db;
     public FixedWindowRateLimitter(IConnectionMultiplexer multiplexer)
     {

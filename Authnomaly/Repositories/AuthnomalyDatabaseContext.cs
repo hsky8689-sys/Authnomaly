@@ -12,6 +12,7 @@ public class AuthnomalyDatabaseContext : DbContext,IDataProtectionKeyContext
     public DbSet<LoginAttempt> loginAttempts { get; set; }
     public DbSet<DataProtectionKey> DataProtectionKeys { get; set; }
     public DbSet<SigningKey> SigningKeys { get; set; }
+    public DbSet<EndpointLimitData> EndpointLimitDatas { get; set; }
     /*to be added for the next entities*/
     public AuthnomalyDatabaseContext(DbContextOptions<AuthnomalyDatabaseContext> options):base(options)
     {
@@ -28,6 +29,7 @@ public class AuthnomalyDatabaseContext : DbContext,IDataProtectionKeyContext
             base.OnConfiguring(optionsBuilder);
         }
     }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<AuthCredentials>()
@@ -35,7 +37,7 @@ public class AuthnomalyDatabaseContext : DbContext,IDataProtectionKeyContext
             .WithOne()
             .HasForeignKey<AuthCredentials>(a => a.Id);
         modelBuilder.Entity<SigningKey>()
-            .HasIndex(s=>s.CreatedAt);
+            .HasIndex(s => s.CreatedAt);
         modelBuilder.Entity<SigningKey>()
             .HasIndex(s => s.IsCurrent)
             .IsUnique()
@@ -47,5 +49,18 @@ public class AuthnomalyDatabaseContext : DbContext,IDataProtectionKeyContext
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Username)
             .IsUnique();
+        modelBuilder.Entity<EndpointLimitData>()
+            .HasIndex(u => new { u.Method, u.Path, u.Order })
+            .IsUnique();
+        modelBuilder.Entity<EndpointLimitData>()
+            .Property(e => e.Method)
+            .HasConversion(
+                m => m.ToString(),
+                m=>HttpMethod.Parse(m)
+                );
+        modelBuilder.Entity<EndpointLimitData>()
+            .Property(u => u.Id)
+            .ValueGeneratedOnAdd()
+            .UseIdentityColumn();
     }
 }

@@ -1,36 +1,60 @@
-﻿using System.Collections.Concurrent;
-using System.Net;
-using Authnomaly.Controllers;
-using Authnomaly.Utils;
+﻿using System.Net;
+using Authnomaly.Domain;
+using Authnomaly.Repositories.Interfaces;
 using Microsoft.AspNetCore.Http.Extensions;
+using StackExchange.Redis;
 
 namespace Authnomaly.Middlewares.RateLimiting;
-
+public class LimiterFactory
+{
+    private readonly IConnectionMultiplexer _multiplexer; 
+    public LimiterFactory(IConnectionMultiplexer multiplexer)
+    {
+        _multiplexer = multiplexer;
+    }
+    public IRateLimitter MakeLimiter(RateLimitStrategy strategy)
+    {
+        return strategy switch
+        {
+            RateLimitStrategy.Bucket => null,
+            RateLimitStrategy.FixedWindow => new FixedWindowRateLimitter(_multiplexer),
+            RateLimitStrategy.SlidingWindow => null
+        };
+    } 
+}
 public class EndpointFilter
 {
-    // {.../login:IP:TimeSpan:tries,/login:USERNAME:TimeSpan:tries}
     private readonly RequestDelegate _next;
-    private readonly IDictionary<String, KeyValuePair<TimeSpan, int>> apiData;
     private IRateLimitter _limiter;
-    public EndpointFilter(RequestDelegate next,IRateLimitter limiter)
+    private static LimiterFactory _factory;
+    private static IRateLimitKeysRepo _limitDataRepository;
+    public EndpointFilter(RequestDelegate next,
+                          IConnectionMultiplexer multiplexer,
+                          IRateLimitKeysRepo limitDataRepo)
     {
         _next = next;
-        _limiter = limiter;
-        apiData = new ConcurrentDictionary<string, KeyValuePair<TimeSpan, int>>();
-        apiData.Add("rl:login:IP",new KeyValuePair<TimeSpan, int>(TimeSpan.FromMinutes(1),100));
-        apiData.Add("rl:login:USERNAME",new KeyValuePair<TimeSpan, int>(TimeSpan.FromMinutes(1),20));
+        _factory = new LimiterFactory(multiplexer);
+        _limitDataRepository = limitDataRepo;
     }
     public async Task InvokeAsync(HttpContext context)
     {
         context.Request.EnableBuffering();
-        var body = context.Request.Body;
+        var method = HttpMethod.Parse(context.Request.Method);
         var url = context.Request.GetDisplayUrl();
-        var key = RateLimitUtils.GetMatch(new RateLimitData(context));
-        Console.WriteLine(key[0]);
-        if (!await _limiter.IncrementKey(key[0],TimeSpan.FromMinutes(1), 100))
-        {
-            context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;
-            return;
+        IList<EndpointLimitData> found = await _limitDataRepository.FindRulesOrdered(method, url);
+        foreach (EndpointLimitData data in found)
+        { 
+            _limiter = _factory.MakeLimiter(data.Strategy);
+            string key = $"rl:{data.Id}:{() => {
+                if(data.Source.Equals(RateLimitSource.Ip))
+                    return context.Connection.RemoteIpAddress;
+                //extragem din body atributul cerut
+            } }";
+            if (!await _limiter.IncrementKey(key,TimeSpan.FromSeconds(data.WindowSeconds),data.Limit))
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;
+                return;
+            }
         }
         await _next(context);
     }

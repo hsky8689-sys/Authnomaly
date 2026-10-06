@@ -1,4 +1,5 @@
 ﻿using Authnomaly.Controllers;
+using Authnomaly.Domain;
 
 namespace Authnomaly.Utils;
 
@@ -10,10 +11,10 @@ public class RateLimitUtils
      * http://localhost:5000 /api/Clients/lo0gin 
      * http://localhost:5000 /api/Clients/lo0gin
      */
-    public static IList<string> GetMatch(RateLimitData data)
+    public static IList<string> GetMatch(EndpointLimitData data)
     {
         const string appUrl = "http://localhost:5000/";
-        var url = data.Url;
+        var url = data.Path;
         var lastIndex = url.IndexOf(appUrl);
         if (lastIndex == -1) return new List<string>(){""};
         var splitted = url.Substring(lastIndex+appUrl.Length).Split("/");
