@@ -1,7 +1,6 @@
 ﻿using System.Net;
 using Authnomaly.Domain;
 using Authnomaly.Repositories.Interfaces;
-using Microsoft.AspNetCore.Http.Extensions;
 using StackExchange.Redis;
 
 namespace Authnomaly.Middlewares.RateLimiting;
@@ -27,29 +26,30 @@ public class EndpointFilter
     private readonly RequestDelegate _next;
     private IRateLimitter _limiter;
     private static LimiterFactory _factory;
-    private static IRateLimitKeysRepo _limitDataRepository;
+    private static IReadOnlyLimitKeysRepo _limitDataRepository;
     public EndpointFilter(RequestDelegate next,
                           IConnectionMultiplexer multiplexer,
-                          IRateLimitKeysRepo limitDataRepo)
+                          IReadOnlyLimitKeysRepo repo)
     {
         _next = next;
         _factory = new LimiterFactory(multiplexer);
-        _limitDataRepository = limitDataRepo;
+        _limitDataRepository = repo;
     }
     public async Task InvokeAsync(HttpContext context)
     {
         context.Request.EnableBuffering();
         var method = HttpMethod.Parse(context.Request.Method);
-        var url = context.Request.GetDisplayUrl();
+        var url = context.Request.Path.Value!;//!
         IList<EndpointLimitData> found = await _limitDataRepository.FindRulesOrdered(method, url);
         foreach (EndpointLimitData data in found)
         { 
+            Console.WriteLine(data);
             _limiter = _factory.MakeLimiter(data.Strategy);
-            string key = $"rl:{data.Id}:{() => {
-                if(data.Source.Equals(RateLimitSource.Ip))
-                    return context.Connection.RemoteIpAddress;
-                //extragem din body atributul cerut
-            } }";
+            string key = $"rl:{data.Id}{() => {
+                if(data.Source.Equals(RateLimitSource.Ip)) return context.Connection?.RemoteIpAddress?.ToString() ?? "";
+                //if (data.Source.Equals(RateLimitSource.BodyField)) return context.Request.Body;
+                return null;
+            }}";
             if (!await _limiter.IncrementKey(key,TimeSpan.FromSeconds(data.WindowSeconds),data.Limit))
             {
                 context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;

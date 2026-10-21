@@ -67,6 +67,9 @@ namespace Authnomaly.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("Strategy")
+                        .HasColumnType("integer");
+
                     b.Property<int>("WindowSeconds")
                         .HasColumnType("integer");
 

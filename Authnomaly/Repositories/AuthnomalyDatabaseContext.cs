@@ -1,7 +1,6 @@
 ﻿using Authnomaly.Domain;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Migrations.Operations;
 
 namespace Authnomaly.Repositories;
 

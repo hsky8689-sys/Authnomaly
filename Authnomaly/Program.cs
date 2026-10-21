@@ -39,13 +39,15 @@ builder.Services.AddScoped<ILoginAttemptsRepo, LoginAttemptsRepository>();
 builder.Services.AddScoped<ILocationDetector,LocationDetectionGepIp>();
 builder.Services.AddScoped<DeviceDetails>();
 builder.Services.AddScoped<ITokenBlacklistStore, TokenBlacklistRepository>();
+builder.Services.AddScoped<IRateLimitKeysRepo,EndpointLimitDataRepository>();
+builder.Services.AddSingleton<IReadOnlyLimitKeysRepo,RatelimitReadonlyRepository>();
+builder.Services.AddSingleton<AuthnomalyDatabaseContextFactory>();
 builder.Services.AddScoped<AuthService>();
 var redis = ConnectionMultiplexer.Connect("localhost");
 builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
 builder.Services.AddStackExchangeRedisCache(options =>
     options.ConnectionMultiplexerFactory = () => Task.FromResult<IConnectionMultiplexer>(redis));
 builder.Services.AddScoped<IRateLimitter,FixedWindowRateLimitter>();
-builder.Services.AddScoped<FixedWindowRateLimitter>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<JwtService>();
 builder.Services.AddControllers();
