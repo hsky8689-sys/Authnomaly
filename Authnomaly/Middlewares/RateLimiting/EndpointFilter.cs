@@ -17,7 +17,7 @@ public class LimiterFactory
         {
             RateLimitStrategy.Bucket => null,
             RateLimitStrategy.FixedWindow => new FixedWindowRateLimitter(_multiplexer),
-            RateLimitStrategy.SlidingWindow => null
+            RateLimitStrategy.SlidingWindow => new SlidingWindowRateLimiter(_multiplexer)
         };
     } 
 }
@@ -43,7 +43,6 @@ public class EndpointFilter
         IList<EndpointLimitData> found = await _limitDataRepository.FindRulesOrdered(method, url);
         foreach (EndpointLimitData data in found)
         { 
-            Console.WriteLine(data);
             _limiter = _factory.MakeLimiter(data.Strategy);
             string key = $"rl:{data.Id}{() => {
                 if(data.Source.Equals(RateLimitSource.Ip)) return context.Connection?.RemoteIpAddress?.ToString() ?? "";

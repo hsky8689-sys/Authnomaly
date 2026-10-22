@@ -1,5 +1,4 @@
-﻿using System.Runtime.InteropServices.JavaScript;
-using StackExchange.Redis;
+﻿using StackExchange.Redis;
 
 namespace Authnomaly.Middlewares.RateLimiting;
 
