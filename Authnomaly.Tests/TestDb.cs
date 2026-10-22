@@ -1,6 +1,7 @@
 using Authnomaly.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using StackExchange.Redis;
 using Xunit;
 
 namespace Authnomaly.Tests;
@@ -27,6 +28,7 @@ public sealed class TestDb : IDisposable
     private static readonly object MigrateLock = new();
     private static bool _migrated;
     private readonly ServiceProvider _provider;
+    private readonly IConnectionMultiplexer _multiplexer;
     public TestDb()
     {
         var password = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_PASSWORD")
@@ -35,6 +37,10 @@ public sealed class TestDb : IDisposable
         services.AddDbContext<AuthnomalyDatabaseContext>(o =>
             o.UseNpgsql($"Host=localhost;Database=authnomalytest;Username=postgres;Password={password}"));
         _provider = services.BuildServiceProvider();
+        var redis = ConnectionMultiplexer.Connect("localhost");
+        _multiplexer=redis;
+        services.AddStackExchangeRedisCache(options =>
+            options.ConnectionMultiplexerFactory = () => Task.FromResult<IConnectionMultiplexer>(redis));
         // keep the test schema in sync with the migrations (the app only migrates the dev database on startup)
         lock (MigrateLock)
         {
@@ -44,6 +50,7 @@ public sealed class TestDb : IDisposable
             _migrated = true;
         }
     }
+    public IDatabase NewRedis() => _multiplexer.GetDatabase();
     public TestScope NewScope() => new(_provider.CreateScope());
     public void Dispose() => _provider.Dispose();
 }
