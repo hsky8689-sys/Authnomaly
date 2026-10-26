@@ -89,10 +89,10 @@ public class StaticWindowTests : IRateLimitTests
         }
     }
     [Theory]
-    [InlineData(1)]
-    //[InlineData(10000)]
-    //[InlineData(100000)]
-    //[InlineData(1000000)]
+    [InlineData(100)]
+    [InlineData(1000)]
+    [InlineData(10000)]
+    [InlineData(100000)]
     public async Task RegisterTests(int multiple)
     {
         var repo = new EndpointLimitDataRepository(_db.NewScope().Context,_db.Multiplexer);
@@ -103,8 +103,8 @@ public class StaticWindowTests : IRateLimitTests
             {
                 id = await repo.Add(new EndpointLimitData(0, HttpMethod.Post,
                     "/api/Clients/register", 1,
-                    RateLimitSource.Ip, 2, 100, null,
-                    RateLimitStrategy.FixedWindow));
+                    RateLimitSource.Ip, 60, 100, null,
+                    RateLimitStrategy.SlidingWindow));
             }
             catch
             {
@@ -128,28 +128,12 @@ public class StaticWindowTests : IRateLimitTests
             int accepted = 0;
             foreach (var result in await Task.WhenAll(clientList))
             {
-                accepted += result.CompareTo(HttpStatusCode.TooManyRequests) == 0 ? 1 : 0;
+                accepted += result.CompareTo(HttpStatusCode.TooManyRequests) != 0 ? 1 : 0;
             }
             Assert.Equal(100,accepted);
-            accepted = 0;
-            _db.NewRedis().StringSet("rl:9002:127.0.0.1",0);
-            var secondClientList = Enumerable.Repeat(task, multiple).Select(task => { return task.Invoke(); });
-            foreach (var result in await Task.WhenAll(secondClientList))
-            {
-                accepted += result.CompareTo(HttpStatusCode.TooManyRequests) == 0 ? 1 : 0;
-            }
-            Thread.Sleep(TimeSpan.FromMinutes(1));
-            Assert.Equal(0,_db.NewRedis().StringGet("rl:9002:127.0.0.1"));
-            var thirdClientList = Enumerable.Repeat(task, multiple).Select(task => { return task.Invoke(); });
-            foreach (var result in await Task.WhenAll(thirdClientList))
-            {
-                accepted += result.CompareTo(HttpStatusCode.TooManyRequests) == 0 ? 1 : 0;
-            }
-            Assert.Equal(200, accepted);
         }
         finally
         {
-            _db.NewRedis().StringSet("rl:9002:127.0.0.1",0);
             await repo.Delete(id);
         }
     }

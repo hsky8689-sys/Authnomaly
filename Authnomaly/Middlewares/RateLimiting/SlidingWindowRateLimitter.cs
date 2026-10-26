@@ -7,15 +7,15 @@ public class SlidingWindowRateLimitter : IRateLimitter
     private const string LuaScript = @"
         local key = KEYS[1]
         local limit = tonumber(ARGV[1])
-        local now = tonumber(redis.call('TIME'))
+        local now = redis.call('TIME')[1]
         local window = tonumber(ARGV[2])
         local member = ARGV[3]
         local lastCleared = now-window
         redis.call('ZREMRANGEBYSCORE',key,'-inf',lastCleared)
-        local current = tonumber(redis.call('ZCARD',key))
+        local current = redis.call('ZCARD',key)
         if current < limit then
             redis.call('ZADD',key,now,member)
-            redis.call('EXPIRE',key,window,'NX')
+            redis.call('EXPIRE',key,window)
             return 1
         end
         return 0
@@ -33,7 +33,7 @@ public class SlidingWindowRateLimitter : IRateLimitter
             var call = await _db.ScriptEvaluateAsync(
                 LuaScript, 
                 new RedisKey[]{key},
-                new RedisValue[]{limit,ttl.TotalSeconds,timestamp}
+                new RedisValue[]{limit,ttl.TotalSeconds,Guid.NewGuid().ToString()}
             );
             return Convert.ToBoolean(call);
         }
