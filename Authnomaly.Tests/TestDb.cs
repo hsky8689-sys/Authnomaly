@@ -50,6 +50,8 @@ public sealed class TestDb : IDisposable
             _migrated = true;
         }
     }
+
+    public IConnectionMultiplexer Multiplexer => _multiplexer;
     public IDatabase NewRedis() => _multiplexer.GetDatabase();
     public TestScope NewScope() => new(_provider.CreateScope());
     public void Dispose() => _provider.Dispose();

@@ -15,9 +15,9 @@ public class LimiterFactory
     {
         return strategy switch
         {
-            RateLimitStrategy.Bucket => null,
+            RateLimitStrategy.Bucket => new BucketRateLimitter(_multiplexer),
             RateLimitStrategy.FixedWindow => new FixedWindowRateLimitter(_multiplexer),
-            RateLimitStrategy.SlidingWindow => new SlidingWindowRateLimiter(_multiplexer)
+            RateLimitStrategy.SlidingWindow => new SlidingWindowRateLimitter(_multiplexer)
         };
     } 
 }
@@ -44,11 +44,7 @@ public class EndpointFilter
         foreach (EndpointLimitData data in found)
         { 
             _limiter = _factory.MakeLimiter(data.Strategy);
-            string key = $"rl:{data.Id}{() => {
-                if(data.Source.Equals(RateLimitSource.Ip)) return context.Connection?.RemoteIpAddress?.ToString() ?? "";
-                //if (data.Source.Equals(RateLimitSource.BodyField)) return context.Request.Body;
-                return null;
-            }}";
+            string key = $"rl:{data.Id}:{context.Connection?.RemoteIpAddress?.ToString()}";
             if (!await _limiter.IncrementKey(key,TimeSpan.FromSeconds(data.WindowSeconds),data.Limit))
             {
                 context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;

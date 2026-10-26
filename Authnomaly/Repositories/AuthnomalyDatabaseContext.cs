@@ -1,4 +1,5 @@
-﻿using Authnomaly.Domain;
+﻿using System.ComponentModel;
+using Authnomaly.Domain;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 

@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Authnomaly.Domain;
 public enum RateLimitStrategy
 {
-    FixedWindow,
-    SlidingWindow,
-    Bucket
+    FixedWindow=0,
+    SlidingWindow=1,
+    Bucket=2
 }
 public enum RateLimitSource
 {

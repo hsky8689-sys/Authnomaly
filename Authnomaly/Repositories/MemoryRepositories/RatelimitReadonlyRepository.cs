@@ -1,7 +1,7 @@
 ﻿using Authnomaly.Domain;
 using Authnomaly.Repositories.Interfaces;
+using Authnomaly.Utils;
 using StackExchange.Redis;
-
 namespace Authnomaly.Repositories.MemoryRepositories;
 
 public class RatelimitReadonlyRepository:IReadOnlyLimitKeysRepo
@@ -20,26 +20,12 @@ public class RatelimitReadonlyRepository:IReadOnlyLimitKeysRepo
         batch.Execute();
         var hashes = await Task.WhenAll(tasks);
         return ids.Zip(hashes).Where(p => p.Second.Length > 0)
-            .Select(p => FromHash((long)p.First,p.Second))
+            .Select(p => RatelimitUtils.FromHash((long)p.First,p.Second))
             .ToList();
     }
     public async Task<EndpointLimitData> FindById(long id)
     {
         HashEntry[] hashEntry = await db.HashGetAllAsync($"rl:rule:{id}");
-        return hashEntry.Length == 0 ? new EndpointLimitData(0) : FromHash(id, hashEntry);
-    }
-    private static HashEntry[] ToHash(EndpointLimitData r) =>
-    [
-        new("method", r.Method.Method), new("path", r.Path), new("order", r.Order),
-        new("source", (int)r.Source), new("field", r.FieldName),
-        new("window", r.WindowSeconds), new("limit", r.Limit), new("strategy", (int)r.Strategy)
-    ];
-    private static EndpointLimitData FromHash(long id, HashEntry[] h)
-    {
-        var d = h.ToDictionary(); // extensie din StackExchange.Redis
-        return new EndpointLimitData(id,
-            HttpMethod.Parse((string)d["method"]!), (string)d["path"]!, (int)d["order"],
-            (RateLimitSource)(int)d["source"], (int)d["window"], (int)d["limit"],
-            (string?)d["field"], (RateLimitStrategy)(int)d["strategy"]);
+        return hashEntry.Length == 0 ? new EndpointLimitData(0) : RatelimitUtils.FromHash(id, hashEntry);
     }
 }
