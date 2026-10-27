@@ -100,7 +100,6 @@ public class ClientsController:ControllerBase
             return res
                 ? Ok(new { message = "Access and refresh tokens refreshed", jwt = firstJwt })
                 : Conflict(new { message = "transaction didn't properly finish" });
-
         }
         if (!lastJti.Equals(jti))
         {
