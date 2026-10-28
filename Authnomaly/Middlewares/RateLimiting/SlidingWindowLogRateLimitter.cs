@@ -2,7 +2,7 @@
 
 namespace Authnomaly.Middlewares.RateLimiting;
 
-public class SlidingWindowRateLimitter : IRateLimitter
+public class SlidingWindowLogRateLimitter : IRateLimitter
 {
     private const string LuaScript = @"
         local key = KEYS[1]
@@ -21,7 +21,7 @@ public class SlidingWindowRateLimitter : IRateLimitter
         return 0
     ";
     private readonly IDatabase _db;
-    public SlidingWindowRateLimitter(IConnectionMultiplexer multiplexer)
+    public SlidingWindowLogRateLimitter(IConnectionMultiplexer multiplexer)
     {
         _db = multiplexer.GetDatabase();
     }
@@ -29,7 +29,6 @@ public class SlidingWindowRateLimitter : IRateLimitter
     {
         try
         {
-            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             var call = await _db.ScriptEvaluateAsync(
                 LuaScript, 
                 new RedisKey[]{key},

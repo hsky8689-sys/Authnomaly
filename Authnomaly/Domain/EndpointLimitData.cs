@@ -5,8 +5,10 @@ namespace Authnomaly.Domain;
 public enum RateLimitStrategy
 {
     FixedWindow=0,
-    SlidingWindow=1,
-    Bucket=2
+    SlidingWindowLog=1,
+    Bucket=2,
+    SlidingWindowCounter=3,
+    LeakyBucket=4
 }
 public enum RateLimitSource
 {

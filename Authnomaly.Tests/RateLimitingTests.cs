@@ -8,11 +8,11 @@ using Xunit;
 using Xunit.Abstractions;
 
 namespace Authnomaly.Tests;
-public class StaticWindowTests
+public class RateLimitingTests
 {
     private ITestOutputHelper _output;
     private TestDb _db;
-    public StaticWindowTests(ITestOutputHelper output)
+    public RateLimitingTests(ITestOutputHelper output)
     {
         _output = output;
         _db = new TestDb();
@@ -69,18 +69,22 @@ public class StaticWindowTests
     [Theory]
     [InlineData(500, 60, 100, "POST",0,null, 0, 2)] 
     [InlineData(500, 60, 100, "POST",0,null, 0, 0)] //static window on login
-    [InlineData(500, 120, 300, "POST",0,null, 0, 0)]
+    [InlineData(500, 120, 300, "POST",0,null, 0, 2)]
     [InlineData(300, 60, 500, "POST",0,null, 1, 1)]
-    [InlineData(400, 10, 500, "POST",0,null, 0, 1)]
+    [InlineData(400, 10, 500, "POST",0,null, 0, 3)]
     [InlineData(200, 10, 500, "POST",0,null, 1, 0)]
-    [InlineData(600, 45, 15, "POST",0,null, 1, 0)]
+    [InlineData(600, 45, 15, "POST",0,null, 1, 2)]
     [InlineData(200, 60, 500, "POST",0,null, 1, 1)]
     [InlineData(500, 10, 500, "POST",0,null, 0, 1)]
     [InlineData(400, 10, 500, "POST",0,null, 1, 0)]
     [InlineData(350, 120, 300, "POST",0,null, 1, 0)]
     [InlineData(500, 60, 500, "POST",0,null, 1, 1)]
-    [InlineData(300, 10, 500, "POST",0,null, 0, 1)]
+    [InlineData(300, 10, 500, "POST",0,null, 0, 3)]
     [InlineData(270, 10, 500, "POST",0,null, 1, 0)]
+    [InlineData(300, 60, 500, "POST",0,null, 0, 3)]
+    [InlineData(200, 60, 500, "POST",0,null, 1, 3)]
+    [InlineData(500, 10, 500, "POST",0,null, 0, 3)]
+    [InlineData(400, 10, 500, "POST",0,null, 1, 2)]
     public async Task basicSpamTests(int multiple, int window, int limit, string method,int source,string? fieldName,int appEndpoint, int strategy)
     {
         /*
@@ -166,5 +170,9 @@ public class StaticWindowTests
         {
             await repo.Delete(id);
         }
+    }
+    public async Task retryTimeTests()
+    {
+        
     }
 }

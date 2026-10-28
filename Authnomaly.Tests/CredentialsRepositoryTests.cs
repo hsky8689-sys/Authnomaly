@@ -18,7 +18,7 @@ public class CredentialsRepositoryTests : IDisposable
         long userId = await new UsersRepository(s.Context).Add(user);
         if (userId == 0) return 0;
         var hashed = Encryption.HashPassword(password);
-        var creds = new AuthCredentials(0, Convert.ToBase64String(hashed.Hash), user, hashed.Salt);
+        var creds = new AuthCredentials(0, Convert.ToBase64String(hashed.Hash), new User(userId,user.Username,user.Email), hashed.Salt);
         return await new CredentialsRepository(s.Context).Add(creds) == 0 ? 0 : userId;
     }
 

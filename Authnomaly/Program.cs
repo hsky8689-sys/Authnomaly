@@ -56,7 +56,7 @@ builder.Services.AddHostedService<CleanupSecurityKeysService>();
 builder.Services.AddDataProtection().PersistKeysToDbContext<AuthnomalyDatabaseContext>();
 var app = builder.Build();
 app.MapControllers();
-app.UseMiddleware<EndpointFilter>();
+app.UseMiddleware<RatelimitFilter>();
 app.Run();
 }
 }

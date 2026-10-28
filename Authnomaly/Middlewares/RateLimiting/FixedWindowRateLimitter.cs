@@ -15,7 +15,8 @@ public class FixedWindowRateLimitter : IRateLimitter
             redis.call('EXPIRE',key,expire,'NX')
             return 1
         end
-        return 0
+        local retry_after = redis.call('pttl',key)
+        return {0,retry_after}
     ";
     private readonly IDatabase _db;
     public FixedWindowRateLimitter(IConnectionMultiplexer multiplexer)
