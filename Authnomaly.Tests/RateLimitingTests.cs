@@ -67,6 +67,7 @@ public class StaticWindowTests
                 accepted - allowedError <= 2 * total && accepted + allowedError >= total * 2);//fixed window edge case
     }
     [Theory]
+    [InlineData(500, 60, 100, "POST",0,null, 0, 2)] 
     [InlineData(500, 60, 100, "POST",0,null, 0, 0)] //static window on login
     [InlineData(500, 120, 300, "POST",0,null, 0, 0)]
     [InlineData(300, 60, 500, "POST",0,null, 1, 1)]
