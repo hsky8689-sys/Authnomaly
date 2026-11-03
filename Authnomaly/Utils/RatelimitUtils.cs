@@ -1,4 +1,7 @@
-﻿using System.Threading.RateLimiting;
+﻿using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Threading.RateLimiting;
 using Authnomaly.Domain;
 using Authnomaly.Middlewares.RateLimiting;
 using StackExchange.Redis;
@@ -41,8 +44,8 @@ public class RatelimitUtils
     public static string CreateRuleCacheKey(long id)
     {
         /*
-         * Creeaza cheia dupa care este cautat set-ul
-         * de valori aferente strategiei cu un anume id
+         * Creates the key that maps to the saved
+         * rules for a strategy having a certain id
          */
         return $"rl:rule:{id}";
     }
@@ -132,13 +135,61 @@ public class RatelimitUtils
             RateLimitStrategy.LeakyBucket=>RateLimitPartition.GetNoLimiter(key)
         };
     }
-    public static string CreateCacheKeyAfterEntity(EndpointLimitData entity)
+    private static string ClientIpValue(HttpContext context)
     {
         /*
-         * Returneaza cheia dupa care este este stocata setul
-         * de valori aferente dupa diferiti parametrii bazati pe
-         * sursa lor (header/body etc)
+         * ipv4 sent like ::ffff:1.2.3.4 uses the same counter as 1.2.3.4;
+         * real ipv6 values remain unchanged
          */
-        throw new NotImplementedException();
+        var ip = context.Connection.RemoteIpAddress;
+        if (ip is not null && ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
+        return $"ip:{ip}";
+    }
+    private static async Task<string> BodyAttributeValue(EndpointLimitData data,HttpContext context)
+    {
+        /*
+         * Citeste campul din body fara sa il consume pentru controller;
+         * body gol, json invalid sau camp lipsa -> contor pe ip,
+         * ca un request fara camp sa nu poata ocoli regula
+         */
+        var body = context.Request.Body;
+        body.Position = 0;
+        string json;
+        using (var reader=new StreamReader(body,Encoding.UTF8,leaveOpen:true))
+        {
+            json=await reader.ReadToEndAsync();
+        }
+        body.Position = 0;
+        if (json.Length==0) return ClientIpValue(context);//if no such header is present,we return an ip-based rate-limit key
+        try
+        {
+            var content = JsonSerializer.Deserialize<Dictionary<string,JsonElement>>(json);
+            // model binding-ul din asp.net e case-insensitive, deci si cautarea campului
+            var field = content?.FirstOrDefault(kv => string.Equals(kv.Key,data.FieldName,StringComparison.OrdinalIgnoreCase));
+            if (field?.Key is null) return ClientIpValue(context);
+            string raw = field.Value.Value.ValueKind == JsonValueKind.String ? field.Value.Value.GetString()!
+                                                                             : field.Value.Value.GetRawText();
+            return $"body:{raw.Trim().ToLowerInvariant()}";
+        }
+        catch (JsonException)
+        {
+            return ClientIpValue(context);
+        }
+    }
+    public static async Task<string> CreateCounterCacheKeyAfterEntity(EndpointLimitData data,HttpContext context)
+    {
+        /*
+         * Creates the key after which the counter
+         * of a real-time monitored rate limit instance
+         * after parameters based of parameters from header/body/ip adress
+         * valoarea e hash-uita ca atacatorul sa nu controleze lungimea cheii
+         */
+        string value = data.Source switch
+        {
+            RateLimitSource.BodyField=>await BodyAttributeValue(data,context),
+            _=>ClientIpValue(context)
+        };
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)))[..16];
+        return $"rl:cnt:{data.Id}:{hash}";
     }
 }

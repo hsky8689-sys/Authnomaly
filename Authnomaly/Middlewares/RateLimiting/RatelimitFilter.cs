@@ -1,11 +1,10 @@
 ﻿using System.Net;
-using Authnomaly.Domain;
-using Authnomaly.Repositories.Interfaces;
-using StackExchange.Redis;
 using System.Threading.RateLimiting;
+using Authnomaly.Domain;
 using Authnomaly.Repositories.DatabaseRepositories;
+using Authnomaly.Repositories.Interfaces;
 using Authnomaly.Utils;
-using Microsoft.AspNetCore.RateLimiting;
+using StackExchange.Redis;
 
 namespace Authnomaly.Middlewares.RateLimiting;
 
@@ -48,7 +47,7 @@ public class RatelimitFilter
             foreach (EndpointLimitData data in found)
             {
                 IRateLimitter limiter = RatelimitUtils.MakeRateLimiter(data.Strategy,_multiplexer);
-                string key = $"rl:{data.Id}:{context.Connection?.RemoteIpAddress?.ToString()}";
+                string key = await RatelimitUtils.CreateCounterCacheKeyAfterEntity(data, context);
                 if (!await limiter.IncrementKey(key, TimeSpan.FromSeconds(data.WindowSeconds), data.Limit))
                 {
                     context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;
@@ -60,6 +59,7 @@ public class RatelimitFilter
         {
             IRateLimitKeysRepo dbLimitDataRepo = new EndpointLimitDataRepository(null,_multiplexer);
             RateLimitPartition<string> dbLimit = RatelimitUtils.MakeFallbackRateLimiter(RateLimitStrategy.FixedWindow,_dbRateLimitKey);
+            
             var orderedByPriority = await dbLimitDataRepo.FindRulesOrdered(method, url);
             IList<RateLimitPartition<string>> partitions = new List<RateLimitPartition<string>>();
             foreach (EndpointLimitData data in orderedByPriority)
