@@ -10,7 +10,7 @@ public class LeakyBucketRateLimiter:IRateLimitter
     {
         _db = multiplexer.GetDatabase();
     }
-    public Task<bool> IncrementKey(string key, TimeSpan ttl, int limit)
+    public Task<RateLimitResponse> IncrementKey(string key, TimeSpan ttl, int limit)
     {
         throw new NotImplementedException();
     }

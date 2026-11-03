@@ -37,7 +37,7 @@ public sealed class TestDb : IDisposable
         services.AddDbContext<AuthnomalyDatabaseContext>(o =>
             o.UseNpgsql($"Host=localhost;Database=authnomalytest;Username=postgres;Password={password}"));
         _provider = services.BuildServiceProvider();
-        var redis = ConnectionMultiplexer.Connect("localhost");
+        var redis = ConnectionMultiplexer.Connect("localhost,allowAdmin=true");
         _multiplexer=redis;
         services.AddStackExchangeRedisCache(options =>
             options.ConnectionMultiplexerFactory = () => Task.FromResult<IConnectionMultiplexer>(redis));

@@ -1,9 +1,11 @@
 ﻿using System.Net;
 using System.Threading.RateLimiting;
 using Authnomaly.Domain;
+using Authnomaly.Repositories;
 using Authnomaly.Repositories.DatabaseRepositories;
 using Authnomaly.Repositories.Interfaces;
 using Authnomaly.Utils;
+using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 
 namespace Authnomaly.Middlewares.RateLimiting;
@@ -11,12 +13,16 @@ namespace Authnomaly.Middlewares.RateLimiting;
 public class RateLimitResponse
 {
     private bool _accepted;
+    private int _remainingTokens;
     private long? _retryAfter;
     public bool Accepted => _accepted;
     public long? RetryAfter => _retryAfter;
-    public RateLimitResponse()
+    public int RemainingTokens => _remainingTokens;
+    public RateLimitResponse(bool accepted,int remainingTokens,long retryAfter)
     {
-        
+        _accepted = accepted;
+        _retryAfter = retryAfter;
+        _remainingTokens = remainingTokens;
     }
 }
 public class RatelimitFilter
@@ -25,19 +31,23 @@ public class RatelimitFilter
     private static IReadOnlyLimitKeysRepo _limitDataRepository;
     private readonly IConnectionMultiplexer _multiplexer;
     private static readonly string _dbRateLimitKey = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_RATELIMIT_KEY")!;
+    private readonly DbContext _context;
     private static readonly PartitionedRateLimiter<(string Key, RateLimitStrategy Strategy, EndpointLimitData? Data)> _fallbackLimiter = PartitionedRateLimiter.Create<(string Key, RateLimitStrategy Strategy, EndpointLimitData? Data), string>(r=> RatelimitUtils.MakeFallbackRateLimiter(r.Strategy, r.Key, r.Data));
     public RatelimitFilter(RequestDelegate next,
                           IConnectionMultiplexer multiplexer,
-                          IReadOnlyLimitKeysRepo repo)
+                          IReadOnlyLimitKeysRepo repo,
+                          DbContext context)
     {
         _next = next;
         _multiplexer = multiplexer;
         _limitDataRepository = repo;
+        _context = context;
     }
     public async Task InvokeAsync(HttpContext context)
     {
         HttpMethod method=HttpMethod.Post;
         string url="";
+        RateLimitResponse response = new RateLimitResponse(false, -1, -1);
         try
         {
             context.Request.EnableBuffering();
@@ -46,26 +56,34 @@ public class RatelimitFilter
             IList<EndpointLimitData> found = await _limitDataRepository.FindRulesOrdered(method, url);
             foreach (EndpointLimitData data in found)
             {
-                IRateLimitter limiter = RatelimitUtils.MakeRateLimiter(data.Strategy,_multiplexer);
+                IRateLimitter limiter = RatelimitUtils.MakeRateLimiter(data.Strategy, _multiplexer);
                 string key = await RatelimitUtils.CreateCounterCacheKeyAfterEntity(data, context);
-                if (!await limiter.IncrementKey(key, TimeSpan.FromSeconds(data.WindowSeconds), data.Limit))
-                {
-                    context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;
-                    return;
-                }
+                response = await limiter.IncrementKey(key, TimeSpan.FromSeconds(data.WindowSeconds), data.Limit);
+                if (!response.Accepted) break;
             }
+            context.Response.StatusCode = response.Accepted ? (int)HttpStatusCode.Accepted : (int) HttpStatusCode.TooManyRequests;
+            string responseMessage = response.Accepted ? "Request was accepted" : "Too many requests";
+            if (!response.Accepted) context.Response.Headers.RetryAfter = response.RetryAfter.ToString();
+            await context.Response.WriteAsJsonAsync(new
+            {
+                    message = responseMessage,
+                    retryAfterSeconds = response.RetryAfter,
+                    accepted = response.Accepted,
+                    remainingTokens = response.RemainingTokens
+            });
         }
         catch (Exception ex) when (ex is RedisConnectionException or RedisTimeoutException)
         {
-            IRateLimitKeysRepo dbLimitDataRepo = new EndpointLimitDataRepository(null,_multiplexer);
-            RateLimitPartition<string> dbLimit = RatelimitUtils.MakeFallbackRateLimiter(RateLimitStrategy.FixedWindow,_dbRateLimitKey);
-            
+            IRateLimitKeysRepo dbLimitDataRepo = new EndpointLimitDataRepository(_context as AuthnomalyDatabaseContext, _multiplexer);
+            RateLimitPartition<string> dbLimit =
+                RatelimitUtils.MakeFallbackRateLimiter(RateLimitStrategy.FixedWindow, _dbRateLimitKey);
+
             var orderedByPriority = await dbLimitDataRepo.FindRulesOrdered(method, url);
             IList<RateLimitPartition<string>> partitions = new List<RateLimitPartition<string>>();
             foreach (EndpointLimitData data in orderedByPriority)
             {
                 string key = $"rl:{data.Id}:{context.Connection?.RemoteIpAddress?.ToString()}";
-                RateLimitPartition<string> limiter = RatelimitUtils.MakeFallbackRateLimiter(data.Strategy,key,data);
+                //RateLimitPartition<string> limiter = RatelimitUtils.MakeFallbackRateLimiter(data.Strategy, key, data);
             }
             //TODO rate limit in memory + key after entity + leaky bucket implementation
         }

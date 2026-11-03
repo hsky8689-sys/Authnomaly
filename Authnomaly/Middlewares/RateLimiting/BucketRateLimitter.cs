@@ -31,16 +31,21 @@ public class BucketRateLimitter : IRateLimitter
             remaining = tokens
             allowed = 1
         end
-       
+ 
         redis.call('HSET',key,'tokens',tostring(tokens),'last_refill',tostring(now))
         redis.call('EXPIRE',key,math.ceil(max_tokens/refill_rate)+1)
+        local retryAfter = 0
+        if allowed == 0 then
+            retryAfter = math.ceil(max_tokens/refill_rate)+1
+        end
+        return {allowed,remaining,retryAfter}
     ";
     private readonly IDatabase _db;
     public BucketRateLimitter(IConnectionMultiplexer multiplexer)
     {
         _db = multiplexer.GetDatabase();
     }
-    public async Task<bool> IncrementKey(string key,TimeSpan ttl,int limit)
+    public async Task<RateLimitResponse> IncrementKey(string key,TimeSpan ttl,int limit)
     {
         try
         {
@@ -50,12 +55,15 @@ public class BucketRateLimitter : IRateLimitter
                 new RedisKey[]{key},
                 new RedisValue[]{limit,ttl.TotalSeconds,timestamp}
             );
-            return Convert.ToBoolean(call);
+            bool accepted = Convert.ToBoolean(call[0]);
+            int tokensRemaining = Convert.ToInt32(call[1]);
+            long retryAfter = Convert.ToInt64(call[2]);
+            return new RateLimitResponse(accepted,tokensRemaining,retryAfter);
         }
         catch(Exception e)
         {
             Console.WriteLine("rate limit exception:"+e.Message);
-            return false;
+            return new RateLimitResponse(false,-1,-1);
         }
     } 
 }

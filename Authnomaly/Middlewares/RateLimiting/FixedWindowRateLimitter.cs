@@ -13,17 +13,17 @@ public class FixedWindowRateLimitter : IRateLimitter
         if current < limit then
             redis.call('INCR',key)
             redis.call('EXPIRE',key,expire,'NX')
-            return 1
+            return {1,limit-current,0}
         end
-        local retry_after = redis.call('pttl',key)
-        return {0,retry_after}
+        local retryAfter = redis.call('pttl',key)
+        return {0,0,retryAfter}
     ";
     private readonly IDatabase _db;
     public FixedWindowRateLimitter(IConnectionMultiplexer multiplexer)
     {
         _db = multiplexer.GetDatabase();
     }
-    public async Task<bool> IncrementKey(string key,TimeSpan ttl,int limit)
+    public async Task<RateLimitResponse> IncrementKey(string key,TimeSpan ttl,int limit)
     {
         try
         {
@@ -32,12 +32,15 @@ public class FixedWindowRateLimitter : IRateLimitter
                 new RedisKey[]{key},
                 new RedisValue[]{limit,DateTimeOffset.UtcNow.ToUnixTimeSeconds(),ttl.TotalSeconds}
             );
-            return Convert.ToBoolean(call);
+            bool accepted = Convert.ToBoolean(call[0]);
+            int tokensRemaining = Convert.ToInt32(call[1]);
+            long retryAfter = Convert.ToInt64(call[2]);
+            return new RateLimitResponse(accepted,tokensRemaining,retryAfter);
         }
         catch(Exception e)
         {
             Console.WriteLine("rate limit exception:"+e.Message);
-            return false;
+            return new RateLimitResponse(false,-1,-1);
         }
     }
 }

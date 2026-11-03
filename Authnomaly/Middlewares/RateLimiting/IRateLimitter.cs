@@ -2,5 +2,5 @@
 
 public interface IRateLimitter
 {
-    Task<bool> IncrementKey(string key, TimeSpan ttl, int limit);
+    Task<RateLimitResponse> IncrementKey(string key, TimeSpan ttl, int limit);
 }

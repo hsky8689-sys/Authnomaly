@@ -16,16 +16,17 @@ public class SlidingWindowLogRateLimitter : IRateLimitter
         if current < limit then
             redis.call('ZADD',key,now,member)
             redis.call('EXPIRE',key,window)
-            return 1
+            return {1,limit-current,0}
         end
-        return 0
+        local retryAfter = redis.call('PTTL',key)
+        return {0,0,retryAfter}
     ";
     private readonly IDatabase _db;
     public SlidingWindowLogRateLimitter(IConnectionMultiplexer multiplexer)
     {
         _db = multiplexer.GetDatabase();
     }
-    public async Task<bool> IncrementKey(string key,TimeSpan ttl,int limit)
+    public async Task<RateLimitResponse> IncrementKey(string key,TimeSpan ttl,int limit)
     {
         try
         {
@@ -34,12 +35,15 @@ public class SlidingWindowLogRateLimitter : IRateLimitter
                 new RedisKey[]{key},
                 new RedisValue[]{limit,ttl.TotalSeconds,Guid.NewGuid().ToString()}
             );
-            return Convert.ToBoolean(call);
+            bool accepted = Convert.ToBoolean(call[0]);
+            int tokensRemaining = Convert.ToInt32(call[1]);
+            long retryAfter = Convert.ToInt64(call[2]);
+            return new RateLimitResponse(accepted,tokensRemaining,retryAfter);
         }
         catch(Exception e)
         {
             Console.WriteLine("rate limit exception:"+e.Message);
-            return false;
+            return new RateLimitResponse(false,-1,-1);
         }
     }
 }

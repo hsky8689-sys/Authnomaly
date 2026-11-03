@@ -15,20 +15,21 @@ public class SlidingWindowCounterRateLimiter:IRateLimitter
         local bias = last_counted * (1-delta)
         local estimated = bias + current_counted
         if estimated >= limit then
-            return 0
+            local retryAfter = redis.call('PTTL',current_key)
+            return {0,0,retryAfter}
         end
         local new_value = redis.call('INCR',current_key)
         if new_value == 1 then
             redis.call('EXPIRE',current_key,window*2)
         end
-        return 1
+        return {1,limit-estimated,0}
     "; 
     private readonly IDatabase _db;
     public SlidingWindowCounterRateLimiter(IConnectionMultiplexer multiplexer)
     {
         _db = multiplexer.GetDatabase();
     } 
-    public async Task<bool> IncrementKey(string key, TimeSpan ttl, int limit)
+    public async Task<RateLimitResponse> IncrementKey(string key, TimeSpan ttl, int limit)
     {
         try
         {
@@ -41,12 +42,15 @@ public class SlidingWindowCounterRateLimiter:IRateLimitter
                 new RedisKey[]{currentKey,lastKey},
                 new RedisValue[]{limit,ttl.TotalSeconds,timestamp}
             );
-            return Convert.ToBoolean(call);
+            bool accepted = Convert.ToBoolean(call[0]);
+            int tokensRemaining = Convert.ToInt32(call[1]);
+            long retryAfter = Convert.ToInt64(call[2]);
+            return new RateLimitResponse(accepted,tokensRemaining,retryAfter);
         }
         catch(Exception e)
         {
             Console.WriteLine("rate limit exception:"+e.Message);
-            return false;
+            return new RateLimitResponse(false,-1,-1);
         }
     }
 }
