@@ -95,7 +95,7 @@ public class RateLimitingTests
 
     [Theory]
     [InlineData(500, 60, 100, "POST", 0, null, 0, 2)]
-    [InlineData(500, 60, 100, "POST", 0, null, 0, 0)] //static window on login
+    [InlineData(500, 60, 100, "POST", 0, null, 0, 0)]
     [InlineData(500, 120, 300, "POST", 0, null, 0, 2)]
     [InlineData(300, 60, 500, "POST", 0, null, 1, 1)]
     [InlineData(400, 10, 500, "POST", 0, null, 0, 3)]
@@ -202,14 +202,14 @@ public class RateLimitingTests
         }
     }
     [Theory]
-    [InlineData(100, new[] { 60, 60 }, new[] { 50, 20 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 0, 0 })] // ip 50 + username 20 -> 20
-    [InlineData(100, new[] { 60, 60 }, new[] { 20, 50 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 0, 0 })] // ordinea inversata -> tot 20
-    [InlineData(100, new[] { 120, 60 }, new[] { 30, 10 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 1, 1 })] // sliding log pe ambele -> 10
-    [InlineData(150, new[] { 60, 90, 120 }, new[] { 100, 40, 70 }, new[] { "POST", "POST", "POST" }, new[] { 0, 1, 0 }, new[] { null, "Username", null }, 0, new[] { 0, 1, 3 })] // fixed + log + counter -> 40
-    [InlineData(100, new[] { 60, 60 }, new[] { 25, 60 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 2, 0 })] // bucket 25 -> intre 25 si 25 + refill
-    [InlineData(100, new[] { 60, 60 }, new[] { 30, 12 }, new[] { "POST", "POST" }, new[] { 1, 1 }, new[] { "Username", "Password" }, 0, new[] { 0, 1 })] // doua campuri din body -> 12
-    [InlineData(150, new[] { 60, 60, 90 }, new[] { 40, 35, 45 }, new[] { "POST", "POST", "POST" }, new[] { 0, 1, 1 }, new[] { null, "Username", "Password" }, 0, new[] { 0, 0, 3 })] // trei reguli -> 35
-    [InlineData(10, new[] { 60, 60 }, new[] { 100, 100 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 0, 1 })] // 20 requesturi < limita -> trec toate 20
+    [InlineData(100, new[] { 60, 60 }, new[] { 50, 20 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 0, 0 })]
+    [InlineData(100, new[] { 60, 60 }, new[] { 20, 50 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 0, 0 })]
+    [InlineData(100, new[] { 120, 60 }, new[] { 30, 10 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 1, 1 })]
+    [InlineData(150, new[] { 60, 90, 120 }, new[] { 100, 40, 70 }, new[] { "POST", "POST", "POST" }, new[] { 0, 1, 0 }, new[] { null, "Username", null }, 0, new[] { 0, 1, 3 })]
+    [InlineData(100, new[] { 60, 60 }, new[] { 25, 60 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 2, 0 })]
+    [InlineData(100, new[] { 60, 60 }, new[] { 30, 12 }, new[] { "POST", "POST" }, new[] { 1, 1 }, new[] { "Username", "Password" }, 0, new[] { 0, 1 })]
+    [InlineData(150, new[] { 60, 60, 90 }, new[] { 40, 35, 45 }, new[] { "POST", "POST", "POST" }, new[] { 0, 1, 1 }, new[] { null, "Username", "Password" }, 0, new[] { 0, 0, 3 })]
+    [InlineData(10, new[] { 60, 60 }, new[] { 100, 100 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 0, 1 })]
     [InlineData(100, new[] { 120,60 }, new[] { 120,100 }, new[] { "POST","POST" }, new[] { 1,0 }, new[] { "Username",null }, 0, new[] { 0,2 })]
     [InlineData(200, new[] { 130,30 }, new[] { 120,200 }, new[] { "POST","POST" }, new[] { 1,1 }, new[] { "Username","Username" }, 0, new[] { 0,0 })]
     [InlineData(130, new[] { 90,60,90 }, new[] { 15,300,100 }, new[] { "POST","POST","POST" }, new[] { 1,1,1 }, new[] { "Username","Username","Username" }, 0, new[] { 2,2,2 })]
@@ -222,6 +222,25 @@ public class RateLimitingTests
     [InlineData(120, new[] { 60 }, new[] { 15 }, new[] { "POST" }, new[] { 1 }, new[] { "Username" }, 0, new[] { 1 })]
     [InlineData(600, new[] { 60,30,40,40 }, new[] { 20,20,20,20, }, new[] { "POST","POST","POST","POST" }, new[] { 1,0,0,0 }, new[] { "Username",null,null,null }, 0, new[] { 3,3,3,3 })]
     [InlineData(240, new[] { 200,100,100 }, new[] { 5,5,5 }, new[] { "POST","POST","POST" }, new[] { 1,0,0 }, new[] { "Username",null,null }, 0, new[] { 1,1,1 })]
+    [InlineData(500, new[] { 120, 120, 120, 120, 120 }, new[] { 300, 250, 200, 150, 100 }, new[] { "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 1, 0, 1, 0 }, new[] { null, "Username", null, "Password", null }, 0, new[] { 0, 1, 3, 0, 1 })]
+    [InlineData(500, new[] { 120, 120, 120, 120, 120 }, new[] { 100, 150, 200, 250, 300 }, new[] { "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 1, 0, 1, 0 }, new[] { null, "Username", null, "Password", null }, 0, new[] { 0, 1, 3, 0, 1 })]
+    [InlineData(400, new[] { 90, 90, 90, 90, 90, 90 }, new[] { 80, 80, 80, 80, 80, 80 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 1, 1, 0, 1 }, new[] { null, null, "Username", "Password", null, "Username" }, 0, new[] { 0, 1, 0, 1, 3, 3 })]
+    [InlineData(2000, new[] { 120, 120 }, new[] { 700, 450 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 0, 0 })]
+    [InlineData(1500, new[] { 120, 120 }, new[] { 900, 600 }, new[] { "POST", "POST" }, new[] { 1, 1 }, new[] { "Username", "Password" }, 0, new[] { 1, 1 })]
+    [InlineData(1500, new[] { 120, 120 }, new[] { 500, 800 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 3, 3 })]
+    [InlineData(1000, new[] { 120, 120, 120 }, new[] { 1, 500, 500 }, new[] { "POST", "POST", "POST" }, new[] { 0, 1, 0 }, new[] { null, "Username", null }, 0, new[] { 0, 1, 3 })]
+    [InlineData(250, new[] { 120, 120 }, new[] { 500, 500 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 0, 1 })]
+    [InlineData(251, new[] { 120, 120 }, new[] { 500, 500 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 0, 1 })]
+    [InlineData(1500, new[] { 60, 120 }, new[] { 200, 900 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 2, 0 })]
+    [InlineData(1500, new[] { 120, 60 }, new[] { 300, 600 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 0, 2 })]
+    [InlineData(1000, new[] { 60, 60, 60 }, new[] { 150, 150, 150 }, new[] { "POST", "POST", "POST" }, new[] { 0, 1, 1 }, new[] { null, "Username", "Password" }, 0, new[] { 2, 2, 2 })]
+    [InlineData(300, new[] { 120, 120 }, new[] { 200, 50 }, new[] { "POST", "POST" }, new[] { 1, 1 }, new[] { "Username", "username" }, 0, new[] { 0, 1 })]
+    [InlineData(300, new[] { 120, 120 }, new[] { 200, 60 }, new[] { "POST", "POST" }, new[] { 1, 1 }, new[] { "Username", "Username" }, 0, new[] { 0, 0 })]
+    [InlineData(300, new[] { 120, 120 }, new[] { 200, 40 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Email" }, 0, new[] { 0, 0 })]
+    [InlineData(400, new[] { 120, 120, 120 }, new[] { 100, 30, 60 }, new[] { "POST", "GET", "POST" }, new[] { 0, 0, 1 }, new[] { null, null, "Username" }, 0, new[] { 0, 0, 1 })]
+    [InlineData(300, new[] { 120, 120 }, new[] { 100, 40 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 1, new[] { 0, 1 })]
+    [InlineData(300, new[] { 120 }, new[] { 50 }, new[] { "POST" }, new[] { 0 }, new[] { (string?)null }, 2, new[] { 0 })]                                               
+    [InlineData(1000, new[] { 2, 120 }, new[] { 100, 900 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 0, 0 })]
     public async Task SpamTestsWithMultipleAttributes(int multiple,IList<int> windows,IList<int> limits,IList<string> methods,IList<int> sources,IList<string?> fieldNames, int appEndpoint, IList<int> strategies)
     {
         /*
@@ -272,8 +291,8 @@ public class RateLimitingTests
                         foreach (int k in Enumerable.Range(0, length))
                             if (parsedSources[k] == RateLimitSource.BodyField)
                                 body[fieldNames[k]!] = "one value for basic brute force";
-                        var response = await SendAndIntercept(SharedClient, parsedMethods[j],knownEndpoints[parsedEndpoint], body);
-                        return response.StatusCode;
+                        var result = await SendAndIntercept(SharedClient, parsedMethods[j],knownEndpoints[parsedEndpoint], body);
+                        return result.StatusCode;
                     });
                 }
                 var sw = Stopwatch.StartNew();
@@ -295,7 +314,8 @@ public class RateLimitingTests
         {
             Assert.Fail($"Unexpected error during multiple attributes spam tests: {e.Message}");
         }
-        finally{
+        finally
+        {
             foreach (var id in idsForDeletion) await repo.Delete(id);
             await _db.Multiplexer.GetDatabase().ExecuteAsync("flushall","async"); 
         }
