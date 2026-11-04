@@ -83,15 +83,41 @@ public class RatelimitFilter
             {
                 IRateLimitKeysRepo dbLimitDataRepo = new EndpointLimitDataRepository(_context, _multiplexer);
                 RateLimitPartition<string> dbLimit = RatelimitUtils.MakeFallbackRateLimiter(RateLimitStrategy.FixedWindow, _dbRateLimitKey);
-
+                var dblimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx => dbLimit);
                 var orderedByPriority = await dbLimitDataRepo.FindRulesOrdered(method, url);
-                IList<RateLimitPartition<string>> partitions = new List<RateLimitPartition<string>>();
+                using var dbLease = dblimiter.AttemptAcquire(context);
+                if (!dbLease.IsAcquired)
+                {
+                    context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests; 
+                    context.Response.Headers.RetryAfter = response.RetryAfter.ToString();
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        message = "Too many requests",
+                        retryAfterSeconds = response.RetryAfter,
+                        accepted = response.Accepted,
+                        remainingTokens = response.RemainingTokens
+                    }); 
+                    return; 
+                }
                 foreach (EndpointLimitData data in orderedByPriority)
                 {
-                    string key = $"rl:{data.Id}:{context.Connection?.RemoteIpAddress?.ToString()}";
-                    //RateLimitPartition<string> limiter = RatelimitUtils.MakeFallbackRateLimiter(data.Strategy, key, data);
+                    string key = await RatelimitUtils.CreateCounterCacheKeyAfterEntity(data, context);
+                    using var lease = _fallbackLimiter.AttemptAcquire((key, data.Strategy, data));
+                    if (!lease.IsAcquired)
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests; 
+                        context.Response.Headers.RetryAfter = response.RetryAfter.ToString();
+                        await context.Response.WriteAsJsonAsync(new
+                        {
+                            message = "Too many requests",
+                            retryAfterSeconds = response.RetryAfter,
+                            accepted = response.Accepted,
+                            remainingTokens = response.RemainingTokens
+                        }); 
+                        return; 
+                    }
                 }
-                //TODO rate limit in memory  + leaky bucket implementation
+                //TODO leaky bucket implementation
             }
             catch (Exception e)
             {

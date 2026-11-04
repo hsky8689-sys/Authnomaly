@@ -164,7 +164,6 @@ public class RatelimitUtils
         try
         {
             var content = JsonSerializer.Deserialize<Dictionary<string,JsonElement>>(json);
-            // model binding-ul din asp.net e case-insensitive, deci si cautarea campului
             var field = content?.FirstOrDefault(kv => string.Equals(kv.Key,data.FieldName,StringComparison.OrdinalIgnoreCase));
             if (field?.Key is null) return ClientIpValue(context);
             string raw = field.Value.Value.ValueKind == JsonValueKind.String ? field.Value.Value.GetString()!
