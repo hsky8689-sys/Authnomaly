@@ -15,7 +15,9 @@ namespace Authnomaly.Tests;
 [Collection("Redis")]
 public class TokenBlacklistRepositoryTests : IDisposable
 {
-    private const string Endpoint = "localhost:6379";
+    private static readonly string redisHost = Environment.GetEnvironmentVariable("TEST_REDIS_HOST") ?? throw new ArgumentException("NO REDIS HOST SET");
+    private static readonly int redisPort = Int32.Parse(Environment.GetEnvironmentVariable("TEST_REDIS_PORT") ?? throw new ArgumentException("NO REDIS PORT SET"));
+    private string Endpoint = $"{redisHost}:{redisPort}";
     private const string Prefix = "authnomalytest:";
     private readonly ConcurrentBag<RedisCache> _caches = new();
 
@@ -29,7 +31,7 @@ public class TokenBlacklistRepositoryTests : IDisposable
 
     private ITokenBlacklistStore NewRepo() => new TokenBlacklistRepository(NewCache());
 
-    private static async Task CleanupAsync()
+    private async Task CleanupAsync()
     {
         using var mux = await ConnectionMultiplexer.ConnectAsync(Endpoint);
         var db = mux.GetDatabase();

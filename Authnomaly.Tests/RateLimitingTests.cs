@@ -13,7 +13,8 @@ public class RateLimitingTests
 {
     private ITestOutputHelper _output;
     private TestDb _db;
-
+    //private static readonly string host = Environment.GetEnvironmentVariable("BACKEND_HOST") ?? throw new ArgumentException("NO BACKEND HOST SET");
+    //private static readonly int port = Int32.Parse(Environment.GetEnvironmentVariable("BACKEND_PORT") ?? throw new ArgumentException("NO BACKEND PORT SET"));
     public RateLimitingTests(ITestOutputHelper output)
     {
         _output = output;
@@ -33,7 +34,7 @@ public class RateLimitingTests
     private static readonly HttpClient SharedClient = new(new SocketsHttpHandler
     {
         MaxConnectionsPerServer = 256
-    }) { BaseAddress = new Uri("http://localhost:5000") };
+    }) { BaseAddress = new Uri($"http://localhost:5000") };
     private IReadOnlyDictionary<InAppEndpoint, string> knownEndpoints =
         new Dictionary<InAppEndpoint, string>()
         {
@@ -173,7 +174,7 @@ public class RateLimitingTests
                 HttpClient client = new HttpClient(new SocketsHttpHandler
                 {
                     MaxConnectionsPerServer = 256
-                }) { BaseAddress = new Uri("http://localhost:5000") };
+                }) { BaseAddress = new Uri(/*$"{host}:{port}"*/"http://localhost:5000") };
                 var response = await SendAndIntercept(
                     client,
                     parsedMethod,
@@ -438,7 +439,6 @@ public class RateLimitingTests
         finally
         {
             foreach (var id in idsForDeletion) await repo.Delete(id);
-            await _db.Multiplexer.GetDatabase().ExecuteAsync("flushall","async"); 
         }
     }
 }

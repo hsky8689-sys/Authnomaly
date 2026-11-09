@@ -18,6 +18,7 @@ namespace Authnomaly.Tests;
 [Collection("Database")]
 public class JwtServiceTests
 {
+    private readonly string redisHost = Environment.GetEnvironmentVariable("TEST_REDIS_HOST") ?? throw new ArgumentException("NO REDIS HOST SET");
     private readonly ITestOutputHelper _output;
     private readonly Mock<ISigningKeyStore> _keyStore;
     private IList<SigningKey> _mockSigningKeys;
@@ -89,7 +90,7 @@ public class JwtServiceTests
     }
     internal IConnectionMultiplexer makeMultiplexer()
     {
-        return ConnectionMultiplexer.Connect("localhost");
+        return ConnectionMultiplexer.Connect(redisHost);
     }
     internal JwtService MakeUnmockedService(TestScope scope,IConnectionMultiplexer multiplexer)
     {

@@ -29,15 +29,18 @@ public sealed class TestDb : IDisposable
     private static bool _migrated;
     private readonly ServiceProvider _provider;
     private readonly IConnectionMultiplexer _multiplexer;
+    private static readonly string redisHost = Environment.GetEnvironmentVariable("REDIS_HOST") ?? throw new ArgumentException("NO REDIS HOST SET");
+    private static readonly string databaseHost = Environment.GetEnvironmentVariable("DB_HOST") ?? throw new ArgumentException("NO DATABASE HOST SET");
+    private static readonly string databaseName = Environment.GetEnvironmentVariable("DB_MAIN_NAME") ?? throw new ArgumentException("NO DATABASE NAME SET");
+    private static readonly string databaseUsername = Environment.GetEnvironmentVariable("DB_LOGIN_USERNAME") ?? throw new ArgumentException("NO DATABASE LOGIN USERNAME SET");
+    private static readonly string databasePassword = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_PASSWORD") ?? throw new ArgumentException("NO DATABASE PASSWORD SET");
     public TestDb()
     {
-        var password = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_PASSWORD")
-                       ?? throw new InvalidOperationException("AUTHNOMALY_DB_PASSWORD environment variable is not set.");
         var services = new ServiceCollection();
         services.AddDbContext<AuthnomalyDatabaseContext>(o =>
-            o.UseNpgsql($"Host=localhost;Database=authnomalytest;Username=postgres;Password={password}"));
+            o.UseNpgsql($"Host={databaseHost};Database={databaseName};Username={databaseUsername};Password={databasePassword}"));
         _provider = services.BuildServiceProvider();
-        var redis = ConnectionMultiplexer.Connect("localhost,allowAdmin=true");
+        var redis = ConnectionMultiplexer.Connect($"localhost,allowAdmin=true,abortConnect=false");
         _multiplexer=redis;
         services.AddStackExchangeRedisCache(options =>
             options.ConnectionMultiplexerFactory = () => Task.FromResult<IConnectionMultiplexer>(redis));

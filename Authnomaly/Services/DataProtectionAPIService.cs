@@ -8,7 +8,7 @@ namespace Authnomaly.Services;
 public class DataProtectionAPIService : ISigningKeyProtection
 {
     private readonly IDataProtector _protector;
-    public DataProtectionAPIService(IDataProtectionProvider provider)
+    public DataProtectionAPIService(/*IDataProtectionBuilder builder,*/IDataProtectionProvider provider)
     {
         _protector = provider.CreateProtector("Authnomaly.SigningKeys");
     }

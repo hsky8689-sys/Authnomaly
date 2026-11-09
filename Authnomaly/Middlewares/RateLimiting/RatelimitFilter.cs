@@ -30,9 +30,14 @@ public class RatelimitFilter
     private readonly RequestDelegate _next;
     private static IReadOnlyLimitKeysRepo _limitDataRepository;
     private readonly IConnectionMultiplexer _multiplexer;
-    private static readonly string _dbRateLimitKey = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_RATELIMIT_KEY")!;
+    private static readonly string _dbRateLimitKey = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_RATELIMIT_KEY") ?? throw new ArgumentException("NO DATABASE RATELIMIT KEY SET");
     private readonly AuthnomalyDatabaseContext _context;
-    private static readonly PartitionedRateLimiter<(string Key, RateLimitStrategy Strategy, EndpointLimitData? Data)> _fallbackLimiter = PartitionedRateLimiter.Create<(string Key, RateLimitStrategy Strategy, EndpointLimitData? Data), string>(r=> RatelimitUtils.MakeFallbackRateLimiter(r.Strategy, r.Key, r.Data));
+    private static readonly PartitionedRateLimiter<(string Key, RateLimitStrategy Strategy, EndpointLimitData? Data)> _fallbackLimiter = 
+        PartitionedRateLimiter.Create<(string Key, RateLimitStrategy Strategy, EndpointLimitData? Data), string>(r
+            => RatelimitUtils.MakeFallbackRateLimiter(r.Strategy, r.Key, r.Data));
+    // One global limiter shared by all requests: it caps how many requests may reach Postgres while Redis is down.
+    // Every request maps to the same partition key, so the limiter is built once (lazily, on the first fallback) and reused.
+    private static readonly PartitionedRateLimiter<HttpContext> _dbLimiter = PartitionedRateLimiter.Create<HttpContext, string>(_ => RatelimitUtils.MakeFallbackRateLimiter(RateLimitStrategy.FixedWindow, _dbRateLimitKey));
     public RatelimitFilter(RequestDelegate next,
                           IConnectionMultiplexer multiplexer,
                           IReadOnlyLimitKeysRepo repo,
@@ -50,7 +55,8 @@ public class RatelimitFilter
         HttpMethod method=HttpMethod.Post;
         string url="";
         RateLimitResponse response = new RateLimitResponse(false, -1, -1);
-        _logger.LogDebug($"Limiter trace identifier:{context.TraceIdentifier},Response started stage:{context.Response.HasStarted}");
+        //_logger.LogDebug($"Limiter trace identifier:{context.TraceIdentifier},Response started stage:{context.Response.HasStarted}");
+        IRateLimitKeysRepo dbLimitDataRepo = new EndpointLimitDataRepository(_context, _multiplexer);
         try
         {
             context.Request.EnableBuffering();
@@ -81,13 +87,13 @@ public class RatelimitFilter
         {
             try
             {
-                IRateLimitKeysRepo dbLimitDataRepo = new EndpointLimitDataRepository(_context, _multiplexer);
-                RateLimitPartition<string> dbLimit = RatelimitUtils.MakeFallbackRateLimiter(RateLimitStrategy.FixedWindow, _dbRateLimitKey);
-                var dblimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx => dbLimit);
-                var orderedByPriority = await dbLimitDataRepo.FindRulesOrdered(method, url);
-                using var dbLease = dblimiter.AttemptAcquire(context);
+                using var dbLease = _dbLimiter.AttemptAcquire(context);
                 if (!dbLease.IsAcquired)
                 {
+                    long retryAfter = dbLease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan ra)
+                        ? (long)Math.Ceiling(ra.TotalSeconds)   
+                        : 100;                   
+                    response = new RateLimitResponse(false, 0, retryAfter);
                     context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests; 
                     context.Response.Headers.RetryAfter = response.RetryAfter.ToString();
                     await context.Response.WriteAsJsonAsync(new
@@ -99,12 +105,17 @@ public class RatelimitFilter
                     }); 
                     return; 
                 }
+                var orderedByPriority = await dbLimitDataRepo.FindRulesOrdered(method, url);
                 foreach (EndpointLimitData data in orderedByPriority)
                 {
                     string key = await RatelimitUtils.CreateCounterCacheKeyAfterEntity(data, context);
                     using var lease = _fallbackLimiter.AttemptAcquire((key, data.Strategy, data));
                     if (!lease.IsAcquired)
                     {
+                        long retryAfter = lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan ra)
+                            ? (long)Math.Ceiling(ra.TotalSeconds)   
+                            : 100;                   
+                        response = new RateLimitResponse(false, 0, retryAfter);
                         context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests; 
                         context.Response.Headers.RetryAfter = response.RetryAfter.ToString();
                         await context.Response.WriteAsJsonAsync(new
@@ -121,6 +132,7 @@ public class RatelimitFilter
             }
             catch (Exception e)
             {
+                _logger.LogError($"Exception:{e.Message} at memory rate limiting");
                 return;
             }
         }

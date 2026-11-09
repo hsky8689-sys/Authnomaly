@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using Authnomaly.Domain;
+﻿using Authnomaly.Domain;
 using Authnomaly.Repositories;
 using Authnomaly.Repositories.DatabaseRepositories;
 using Authnomaly.Repositories.Interfaces;
@@ -18,13 +17,16 @@ public class RepositoryTests : IDisposable
     private readonly IServiceScope _scope;
     private AuthnomalyDatabaseContext _context;
     private IUsersRepo _usersRepository;
+    private static readonly string databaseHost = Environment.GetEnvironmentVariable("DB_HOST") ?? throw new ArgumentException("NO DATABASE HOST SET");
+    private static readonly string databaseName = Environment.GetEnvironmentVariable("DB_MAIN_NAME") ?? throw new ArgumentException("NO DATABASE NAME SET");
+    private static readonly string databaseUsername = Environment.GetEnvironmentVariable("DB_LOGIN_USERNAME") ?? throw new ArgumentException("NO DATABASE LOGIN USERNAME SET");
+    private static readonly string databasePassword = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_PASSWORD") ?? throw new ArgumentException("NO DATABASE PASSWORD SET");  
     public RepositoryTests(ITestOutputHelper output)
     {
         _output = output;
-        var password = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_PASSWORD") ?? throw new InvalidOperationException("AUTHNOMALY_DB_PASSWORD environment variable is not set.");
         var collection = new ServiceCollection();
         collection.AddDbContext<AuthnomalyDatabaseContext>(o =>
-            o.UseNpgsql($"Host=localhost;Database=authnomalytest;Username=postgres;Password={password}"));
+            o.UseNpgsql($"Host={databaseHost};Database={databaseName};Username={databaseUsername};Password={databasePassword}"));
         _provider = collection.BuildServiceProvider();
         // one long-lived scope for the sequential tests; concurrency tests create their own scope per operation
         _scope = _provider.CreateScope();

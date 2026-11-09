@@ -7,6 +7,10 @@ namespace Authnomaly.Utils;
 
 public class JwtUtils
 {
+    private static string jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? throw new ArgumentException("NO JWT ISSUER SET UP");
+    private static string jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? throw new ArgumentException("NO JWT AUDIENCE SET UP");
+    private static int jwtExpirySeconds = Int32.Parse(Environment.GetEnvironmentVariable("JWT_EXPIRE") ?? throw new ArgumentException("NO JWT EXPIRE TIME SET UP"));
+    private static int jwtClockSkew = Int32.Parse(Environment.GetEnvironmentVariable("JWT_CLOCK_SKEW")??"5");//default skew value of 5 seconds 
     public static KeyValuePair<RsaSecurityKey,RsaSecurityKey> CreatePair()
     {
         using var rsa = RSA.Create(2048);
@@ -43,16 +47,15 @@ public class JwtUtils
                 new Claim("username",username),
                 new Claim("roles","user"),
                 new Claim("jti",Guid.NewGuid().ToString()),
-                new Claim("familyId",familyId.ToString()),
-                new Claim("trust","100")//changed after anomaly detection features start
+                new Claim("familyId",familyId.ToString())
             }
             );
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = subject,
-            Issuer = "http://localhost:5000",
-            Audience = "http://localhost:5000",
-            Expires = DateTime.UtcNow.AddMinutes(30),
+            Issuer = jwtIssuer,
+            Audience = jwtAudience,
+            Expires = DateTime.UtcNow.AddSeconds(jwtExpirySeconds),
             IssuedAt = DateTime.UtcNow,
             SigningCredentials = new SigningCredentials(privateKey,SecurityAlgorithms.RsaSha256)
         };
@@ -64,10 +67,10 @@ public class JwtUtils
         var validationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
-            ValidIssuer = "http://localhost:5000",
+            ValidIssuer = jwtIssuer,
             
             ValidateAudience = true,
-            ValidAudience = "http://localhost:5000",
+            ValidAudience = jwtAudience,
             
             ValidateLifetime = true,
             
@@ -75,7 +78,7 @@ public class JwtUtils
             IssuerSigningKey = publicKey,
             
             ValidAlgorithms = new [] {SecurityAlgorithms.RsaSha256},
-            ClockSkew = TimeSpan.FromSeconds(30)
+            ClockSkew = TimeSpan.FromSeconds(jwtClockSkew)
         };
         TokenValidationResult result = await handler.ValidateTokenAsync(jwt, validationParameters);
         return result.IsValid;

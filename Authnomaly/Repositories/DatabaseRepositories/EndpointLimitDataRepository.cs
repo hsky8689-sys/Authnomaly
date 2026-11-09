@@ -26,33 +26,40 @@ public class EndpointLimitDataRepository : IRateLimitKeysRepo
     }
     public async Task<bool> Delete(long id)
     {
+        bool deleted = false;
         try
         {
             var query = _context.EndpointLimitDatas.Where(el => el.Id == id);
             var found = await query.FirstOrDefaultAsync();
             if (found is null) return false;
-            bool deleted = await query.ExecuteDeleteAsync() == 1;
+            deleted = await query.ExecuteDeleteAsync() == 1;
             if (deleted)
             {
                 string method = found!.Method.Method;
                 string path = found!.Path;
-                await _db.KeyDeleteAsync(RatelimitUtils.CreateRuleCacheKey(id));                                 
-                await _db.SortedSetRemoveAsync(RatelimitUtils.CreateCacheKey(method,path), id);
+                await _db.KeyDeleteAsync(RatelimitUtils.CreateRuleCacheKey(id));
+                await _db.SortedSetRemoveAsync(RatelimitUtils.CreateCacheKey(method, path), id);
             }
+
             return deleted;
         }
-        catch (SystemException e) when (e.InnerException is ArgumentNullException | 
+        catch (SystemException e) when (e.InnerException is ArgumentNullException |
                                         e.InnerException is InvalidOperationException |
                                         e.InnerException is OperationCanceledException)
         {
             return false;
         }
+        catch (Exception e) when (e is RedisConnectionException or RedisTimeoutException)
+        {
+            return deleted;
+        }
     }
     public async Task<long> Add(EndpointLimitData entity)
     {
+        long added = 0;
         try
         {
-            long added =  await _context.Database
+            added =  await _context.Database
             .SqlQuery<long>($@"SELECT add_endpoint_ratelimit_strategy(
 	                                    {entity.Path},
 	                                    {entity.Method.ToString()},
@@ -68,7 +75,6 @@ public class EndpointLimitDataRepository : IRateLimitKeysRepo
                 var firstHash = RatelimitUtils.ToHash(entity);
                 var data = RatelimitUtils.FromHash(added, firstHash);
                 var key = RatelimitUtils.CreateCacheKey(data.Method.Method,data.Path);
-                //await _db.HashSetAsync(key, RatelimitUtils.ToHash(data));
                 await _db.HashSetAsync(RatelimitUtils.CreateRuleCacheKey(added), RatelimitUtils.ToHash(data));
                 await _db.SortedSetAddAsync(key, added, data.Order);
                 var rk = new RedisKey(key);
@@ -93,6 +99,11 @@ public class EndpointLimitDataRepository : IRateLimitKeysRepo
         {
             return 0;
         }
+        catch (Exception e) when (e is RedisConnectionException or RedisTimeoutException)
+        {
+            //log error 
+            return added;
+        }  
     }
     public async Task<IList<EndpointLimitData>> FindRulesOrdered(HttpMethod method, string path)
     {
@@ -114,11 +125,18 @@ public class EndpointLimitDataRepository : IRateLimitKeysRepo
                     .SetProperty(el=>el.FieldName,el=>entity.FieldName)
                     .SetProperty(el=>el.Source,el=>entity.Source)
             );
-        if (updated > 0)
+        try
         {
-            string rediskey = RatelimitUtils.CreateRuleCacheKey(id);
-            HashEntry[] newStats = RatelimitUtils.ToHash(entity);
-            await _db.HashSetAsync(rediskey,newStats);
+            if (updated > 0)
+            {
+                string rediskey = RatelimitUtils.CreateRuleCacheKey(id);
+                HashEntry[] newStats = RatelimitUtils.ToHash(entity);
+                await _db.HashSetAsync(rediskey, newStats);
+            }
+        }
+        catch (Exception e) when (e is RedisConnectionException or RedisTimeoutException)
+        {
+            //log error+ handle redis exception   
         }
         return updated > 0;
     }

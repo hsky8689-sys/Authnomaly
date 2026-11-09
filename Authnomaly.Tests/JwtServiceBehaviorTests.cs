@@ -19,7 +19,9 @@ namespace Authnomaly.Tests;
 [Collection("Database")]
 public class JwtServiceBehaviorTests : IDisposable
 {
-    private const string RedisEndpoint = "localhost:6379";
+    private static readonly string redisHost = Environment.GetEnvironmentVariable("TEST_REDIS_HOST") ?? throw new ArgumentException("NO REDIS HOST SET");
+    private static readonly int redisPort = Int32.Parse(Environment.GetEnvironmentVariable("TEST_REDIS_PORT") ?? throw new ArgumentException("NO REDIS PORT SET"));
+    private readonly string RedisEndpoint = $"{redisHost}:{redisPort}";
     private const string RedisPrefix = "authnomalytest-jwtservice:";
 
     private readonly ITestOutputHelper _output;
@@ -42,7 +44,7 @@ public class JwtServiceBehaviorTests : IDisposable
         await s.Context.SigningKeys.ExecuteDeleteAsync();
     }
 
-    private static async Task ClearRedis()
+    private async Task ClearRedis()
     {
         using var mux = await ConnectionMultiplexer.ConnectAsync(RedisEndpoint);
         var db = mux.GetDatabase();
