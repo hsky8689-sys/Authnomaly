@@ -34,7 +34,7 @@ public class RateLimitingTests
     private static readonly HttpClient SharedClient = new(new SocketsHttpHandler
     {
         MaxConnectionsPerServer = 256
-    }) { BaseAddress = new Uri($"http://localhost:5000") };
+    }) { BaseAddress = new Uri($"http://localhost:8080") };
     private IReadOnlyDictionary<InAppEndpoint, string> knownEndpoints =
         new Dictionary<InAppEndpoint, string>()
         {

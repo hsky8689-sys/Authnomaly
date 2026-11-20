@@ -35,8 +35,6 @@ public class RatelimitFilter
     private static readonly PartitionedRateLimiter<(string Key, RateLimitStrategy Strategy, EndpointLimitData? Data)> _fallbackLimiter = 
         PartitionedRateLimiter.Create<(string Key, RateLimitStrategy Strategy, EndpointLimitData? Data), string>(r
             => RatelimitUtils.MakeFallbackRateLimiter(r.Strategy, r.Key, r.Data));
-    // One global limiter shared by all requests: it caps how many requests may reach Postgres while Redis is down.
-    // Every request maps to the same partition key, so the limiter is built once (lazily, on the first fallback) and reused.
     private static readonly PartitionedRateLimiter<HttpContext> _dbLimiter = PartitionedRateLimiter.Create<HttpContext, string>(_ => RatelimitUtils.MakeFallbackRateLimiter(RateLimitStrategy.FixedWindow, _dbRateLimitKey));
     public RatelimitFilter(RequestDelegate next,
                           IConnectionMultiplexer multiplexer,

@@ -12,13 +12,14 @@ using StackExchange.Redis;
 
 public class MainClass
 {
-    private static readonly string redisHost = Environment.GetEnvironmentVariable("REDIS_HOST") ?? throw new ArgumentException("NO REDIS HOST SET");
-    private static readonly string databaseHost = Environment.GetEnvironmentVariable("DB_HOST") ?? throw new ArgumentException("NO DATABASE HOST SET");
-    private static readonly string databaseName = Environment.GetEnvironmentVariable("DB_MAIN_NAME") ?? throw new ArgumentException("NO DATABASE NAME SET");
-    private static readonly string databaseUsername = Environment.GetEnvironmentVariable("DB_LOGIN_USERNAME") ?? throw new ArgumentException("NO DATABASE LOGIN USERNAME SET");
-    private static readonly string databasePassword = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_PASSWORD") ?? throw new ArgumentException("NO DATABASE PASSWORD SET");
     public static void Main(string[] args)
-    { 
+    {
+        DotNetEnv.Env.NoClobber().TraversePath().Load(); 
+        string redisHost = Environment.GetEnvironmentVariable("REDIS_HOST") ?? throw new ArgumentException("NO REDIS HOST SET");
+        string databaseHost = Environment.GetEnvironmentVariable("DB_HOST") ?? throw new ArgumentException("NO DATABASE HOST SET"); 
+        string databaseName = Environment.GetEnvironmentVariable("DB_MAIN_NAME") ?? throw new ArgumentException("NO DATABASE NAME SET");
+        string databaseUsername = Environment.GetEnvironmentVariable("DB_LOGIN_USERNAME") ?? throw new ArgumentException("NO DATABASE LOGIN USERNAME SET");
+        string databasePassword = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_PASSWORD") ?? throw new ArgumentException("NO DATABASE PASSWORD SET");
         try
     {
         DbContextOptionsBuilder<AuthnomalyDatabaseContext> options = new DbContextOptionsBuilder<AuthnomalyDatabaseContext>();
