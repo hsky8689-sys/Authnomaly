@@ -253,7 +253,7 @@ public class UtilsTests
     [Fact]
     public void LocationDetectionTests()
     {
-        ILocationDetector detector = new LocationDetectionGepIp();
+        ILocationDetector detector = new LocationDetectionGeoIp();
         var ips = TestIpAddresses.GetSampleIps();
         int resolved = 0;
         int unknown = 0;
@@ -302,7 +302,7 @@ public class UtilsTests
     [InlineData(-22.9068, -43.1729, -34.6037, -58.3816, 1970, 50)]   // Rio de Janeiro - Buenos Aires
     public void ComputeDistanceTests(double lat1, double lon1, double lat2, double lon2, double expectedKm, double tolerance)
     {
-        var detector = new LocationDetectionGepIp();
+        var detector = new LocationDetectionGeoIp();
         var actual = detector.ComputeDistance(lat1, lat2, lon1, lon2);
         _output.WriteLine($"({lat1},{lon1}) -> ({lat2},{lon2}): expected ~{expectedKm}km, got {actual:F2}km");
         Assert.InRange(actual, expectedKm - tolerance, expectedKm + tolerance);
@@ -341,7 +341,7 @@ public class UtilsTests
     [Fact]
     public void GetCoordinatesConsistencyTests()
     {
-        ILocationDetector detector = new LocationDetectionGepIp();
+        ILocationDetector detector = new LocationDetectionGeoIp();
         var ips = TestIpAddresses.GetSampleIps();
         int checkedCount = 0;
         int consistent = 0;

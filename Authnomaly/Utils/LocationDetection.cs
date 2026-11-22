@@ -10,7 +10,7 @@ public interface ILocationDetector
     (double? Latitude, double? Longitude) GetCoordinates(IPAddress ipAddress);
 }
 
-public sealed class LocationDetectionGepIp : ILocationDetector
+public sealed class LocationDetectionGeoIp : ILocationDetector
 {
     private static readonly string _pathToGeo = Environment.GetEnvironmentVariable("GEO_LOCALDB_PATH");
     private static DatabaseReader? _reader = null;

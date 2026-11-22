@@ -31,7 +31,6 @@ public class RatelimitFilter
     private static IReadOnlyLimitKeysRepo _limitDataRepository;
     private readonly IConnectionMultiplexer _multiplexer;
     private static readonly string _dbRateLimitKey = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_RATELIMIT_KEY") ?? throw new ArgumentException("NO DATABASE RATELIMIT KEY SET");
-    private readonly AuthnomalyDatabaseContext _context;
     private static readonly PartitionedRateLimiter<(string Key, RateLimitStrategy Strategy, EndpointLimitData? Data)> _fallbackLimiter = 
         PartitionedRateLimiter.Create<(string Key, RateLimitStrategy Strategy, EndpointLimitData? Data), string>(r
             => RatelimitUtils.MakeFallbackRateLimiter(r.Strategy, r.Key, r.Data));
@@ -39,22 +38,20 @@ public class RatelimitFilter
     public RatelimitFilter(RequestDelegate next,
                           IConnectionMultiplexer multiplexer,
                           IReadOnlyLimitKeysRepo repo,
-                          AuthnomalyDatabaseContext context,
                           ILogger<RatelimitFilter> logger)
     {
         _next = next;
         _multiplexer = multiplexer;
         _limitDataRepository = repo;
-        _context = context;
         _logger = logger;
     }
-    public async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(HttpContext context,AuthnomalyDatabaseContext dbContext)
     {
         HttpMethod method=HttpMethod.Post;
         string url="";
         RateLimitResponse response = new RateLimitResponse(false, -1, -1);
         //_logger.LogDebug($"Limiter trace identifier:{context.TraceIdentifier},Response started stage:{context.Response.HasStarted}");
-        IRateLimitKeysRepo dbLimitDataRepo = new EndpointLimitDataRepository(_context, _multiplexer);
+        IRateLimitKeysRepo dbLimitDataRepo = new EndpointLimitDataRepository(dbContext, _multiplexer);
         try
         {
             context.Request.EnableBuffering();

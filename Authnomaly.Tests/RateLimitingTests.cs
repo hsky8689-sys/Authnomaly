@@ -174,7 +174,7 @@ public class RateLimitingTests
                 HttpClient client = new HttpClient(new SocketsHttpHandler
                 {
                     MaxConnectionsPerServer = 256
-                }) { BaseAddress = new Uri(/*$"{host}:{port}"*/"http://localhost:5000") };
+                }) { BaseAddress = new Uri(/*$"{host}:{port}"*/"http://localhost:8080") };
                 var response = await SendAndIntercept(
                     client,
                     parsedMethod,

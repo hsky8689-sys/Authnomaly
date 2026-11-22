@@ -13,7 +13,7 @@ using StackExchange.Redis;
 public class MainClass
 {
     public static void Main(string[] args)
-    {
+    { 
         DotNetEnv.Env.NoClobber().TraversePath().Load(); 
         string redisHost = Environment.GetEnvironmentVariable("REDIS_HOST") ?? throw new ArgumentException("NO REDIS HOST SET");
         string databaseHost = Environment.GetEnvironmentVariable("DB_HOST") ?? throw new ArgumentException("NO DATABASE HOST SET"); 
@@ -41,7 +41,7 @@ public class MainClass
     builder.Services.AddScoped<IUsersRepo, UsersRepository>();
     builder.Services.AddScoped<ICredentialsRepo, CredentialsRepository>();
     builder.Services.AddScoped<ILoginAttemptsRepo, LoginAttemptsRepository>();
-    builder.Services.AddScoped<ILocationDetector,LocationDetectionGepIp>();
+    builder.Services.AddScoped<ILocationDetector,LocationDetectionGeoIp>();
     builder.Services.AddScoped<DeviceDetails>();
     builder.Services.AddScoped<ITokenBlacklistStore, TokenBlacklistRepository>();
     builder.Services.AddScoped<IRateLimitKeysRepo,EndpointLimitDataRepository>();

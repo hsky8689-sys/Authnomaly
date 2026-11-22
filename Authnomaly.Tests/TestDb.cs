@@ -30,10 +30,10 @@ public sealed class TestDb : IDisposable
     private readonly ServiceProvider _provider;
     private readonly IConnectionMultiplexer _multiplexer;
     private static readonly string redisHost = Environment.GetEnvironmentVariable("REDIS_HOST") ?? throw new ArgumentException("NO REDIS HOST SET");
-    private static readonly string databaseHost = Environment.GetEnvironmentVariable("DB_HOST") ?? throw new ArgumentException("NO DATABASE HOST SET");
-    private static readonly string databaseName = Environment.GetEnvironmentVariable("DB_MAIN_NAME") ?? throw new ArgumentException("NO DATABASE NAME SET");
-    private static readonly string databaseUsername = Environment.GetEnvironmentVariable("DB_LOGIN_USERNAME") ?? throw new ArgumentException("NO DATABASE LOGIN USERNAME SET");
-    private static readonly string databasePassword = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_PASSWORD") ?? throw new ArgumentException("NO DATABASE PASSWORD SET");
+    private static readonly string databaseHost = Environment.GetEnvironmentVariable("TEST_DB_HOST") ?? throw new ArgumentException("NO DATABASE HOST SET");
+    private static readonly string databaseName = Environment.GetEnvironmentVariable("TEST_DB_NAME") ?? throw new ArgumentException("NO DATABASE NAME SET");
+    private static readonly string databaseUsername = Environment.GetEnvironmentVariable("TEST_DB_USERNAME") ?? throw new ArgumentException("NO DATABASE LOGIN USERNAME SET");
+    private static readonly string databasePassword = Environment.GetEnvironmentVariable("TEST_DB_PASSWORD") ?? throw new ArgumentException("NO DATABASE PASSWORD SET");
     public TestDb()
     {
         var services = new ServiceCollection();
