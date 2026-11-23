@@ -5,18 +5,30 @@
       context: .
       dockerfile: Authnomaly/Dockerfile
     ports:
-      - "127.0.0.1:8080:8080"
+      - ${AUTHNOMALY_MAIN_PORT}
     env_file: .env
     environment:
         - DB_HOST=main_database
         - REDIS_HOST=redis
         - ASPNETCORE_ENVIRONMENT=Development
-        - GEO_LOCALDB_PATH=127.0.0.1:.:ro
+        - AUTHNOMALY_DB_MAX_CONNECTIONS=${AUTHNOMALY_DB_MAX_CONNECTIONS}
+        - AUTHNOMALY_DB_STATEMENT_TIMEOUT=${AUTHNOMALY_DB_STATEMENT_TIMEOUT}
+        - GEO_LOCALDB_PATH=/geo/GeoLite2-City.mmdb
+        - LOG_DIR=/logs
+    volumes:
+      - ${GEO_CONTAINER_PATH}
+      - ${LOG_DIR}:/logs
     depends_on:
       main_database:
         condition: service_healthy
   main_database:
     image: postgres:18
+    command:
+      - "postgres"
+      - "-c"
+      - "max_connections=${AUTHNOMALY_DB_MAX_CONNECTIONS}"
+      - "-c"
+      - "statement_timeout=${AUTHNOMALY_DB_STATEMENT_TIMEOUT}"
     ports:
       - ${MAIN_DATABASE_PORT}
     restart: always
@@ -35,7 +47,7 @@
     image: redis:8.8
     restart: always
     ports:
-      - "127.0.0.1:6379:6379"
+      - ${REDIS_MAIN_PORT}
 volumes:
     main_data:
        driver: local

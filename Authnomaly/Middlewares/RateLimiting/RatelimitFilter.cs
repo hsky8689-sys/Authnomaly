@@ -28,13 +28,10 @@ public class RatelimitFilter
 {
     private readonly ILogger<RatelimitFilter> _logger;
     private readonly RequestDelegate _next;
-    private static IReadOnlyLimitKeysRepo _limitDataRepository;
-    private readonly IConnectionMultiplexer _multiplexer;
-    private static readonly string _dbRateLimitKey = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_RATELIMIT_KEY") ?? throw new ArgumentException("NO DATABASE RATELIMIT KEY SET");
-    private static readonly PartitionedRateLimiter<(string Key, RateLimitStrategy Strategy, EndpointLimitData? Data)> _fallbackLimiter = 
-        PartitionedRateLimiter.Create<(string Key, RateLimitStrategy Strategy, EndpointLimitData? Data), string>(r
-            => RatelimitUtils.MakeFallbackRateLimiter(r.Strategy, r.Key, r.Data));
-    private static readonly PartitionedRateLimiter<HttpContext> _dbLimiter = PartitionedRateLimiter.Create<HttpContext, string>(_ => RatelimitUtils.MakeFallbackRateLimiter(RateLimitStrategy.FixedWindow, _dbRateLimitKey));
+    private IReadOnlyLimitKeysRepo _limitDataRepository;
+    private IConnectionMultiplexer _multiplexer;
+    private PartitionedRateLimiter<(string Key, RateLimitStrategy Strategy, EndpointLimitData? Data)>? _fallbackLimiter;
+    private PartitionedRateLimiter<HttpContext>? _dbLimiter;
     public RatelimitFilter(RequestDelegate next,
                           IConnectionMultiplexer multiplexer,
                           IReadOnlyLimitKeysRepo repo,
@@ -44,6 +41,9 @@ public class RatelimitFilter
         _multiplexer = multiplexer;
         _limitDataRepository = repo;
         _logger = logger;
+        _fallbackLimiter =  PartitionedRateLimiter.Create<(string Key, RateLimitStrategy Strategy, EndpointLimitData? Data), string>(r => RatelimitUtils.MakeFallbackRateLimiter(r.Strategy, r.Key, r.Data));
+        string dbRateLimitKey = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_RATELIMIT_KEY") ?? throw new ArgumentException("NO DATABASE RATELIMIT KEY SET");
+        _dbLimiter =  PartitionedRateLimiter.Create<HttpContext, string>(_ => RatelimitUtils.MakeFallbackRateLimiter(RateLimitStrategy.FixedWindow, dbRateLimitKey));
     }
     public async Task InvokeAsync(HttpContext context,AuthnomalyDatabaseContext dbContext)
     {
@@ -58,9 +58,12 @@ public class RatelimitFilter
             method = HttpMethod.Parse(context.Request.Method);
             url = context.Request.Path.Value!; //!
             IList<EndpointLimitData> found = await _limitDataRepository.FindRulesOrdered(method, url);
+            Dictionary<RateLimitStrategy, IRateLimitter> limiters = new Dictionary<RateLimitStrategy, IRateLimitter>();
             foreach (EndpointLimitData data in found)
             {
-                IRateLimitter limiter = RatelimitUtils.MakeRateLimiter(data.Strategy, _multiplexer);
+                if (!limiters.ContainsKey(data.Strategy))
+                    limiters[data.Strategy] = RatelimitUtils.MakeRateLimiter(data.Strategy, _multiplexer);
+                IRateLimitter limiter = limiters[data.Strategy];
                 string key = await RatelimitUtils.CreateCounterCacheKeyAfterEntity(data, context);
                 response = await limiter.IncrementKey(key, TimeSpan.FromSeconds(data.WindowSeconds), data.Limit);
                 if (!response.Accepted)
@@ -82,7 +85,7 @@ public class RatelimitFilter
         {
             try
             {
-                using var dbLease = _dbLimiter.AttemptAcquire(context);
+                using var dbLease = _dbLimiter!.AttemptAcquire(context);
                 if (!dbLease.IsAcquired)
                 {
                     long retryAfter = dbLease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan ra)
@@ -104,7 +107,7 @@ public class RatelimitFilter
                 foreach (EndpointLimitData data in orderedByPriority)
                 {
                     string key = await RatelimitUtils.CreateCounterCacheKeyAfterEntity(data, context);
-                    using var lease = _fallbackLimiter.AttemptAcquire((key, data.Strategy, data));
+                    using var lease = _fallbackLimiter!.AttemptAcquire((key, data.Strategy, data));
                     if (!lease.IsAcquired)
                     {
                         long retryAfter = lease.TryGetMetadata(MetadataName.RetryAfter, out TimeSpan ra)
@@ -119,7 +122,7 @@ public class RatelimitFilter
                             retryAfterSeconds = response.RetryAfter,
                             accepted = response.Accepted,
                             remainingTokens = response.RemainingTokens
-                        }); 
+                        });
                         return; 
                     }
                 }
