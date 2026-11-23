@@ -19,7 +19,7 @@ appsettings.Local.json
 appsettings.*.Local.json
 *.env
 .env
-
+Authnomaly/GeoLite/
 # EF Core
 Migrations/*.sql
 

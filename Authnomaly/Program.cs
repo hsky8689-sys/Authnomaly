@@ -63,6 +63,10 @@ public class MainClass
     var app = builder.Build();
     app.MapControllers();
     app.UseMiddleware<RatelimitFilter>();
+    app.Map("/host", (IAsyncResult r) =>
+    {
+        //TODO YARP dynamic endpoint configuration 
+    });
     app.Run(); 
     }
 }

@@ -13,29 +13,17 @@ namespace Authnomaly.Tests;
 public class RepositoryTests : IDisposable
 {
     private readonly ITestOutputHelper _output;
-    private readonly ServiceProvider _provider;
-    private readonly IServiceScope _scope;
+    private readonly TestDb _db = new();
+    private readonly TestScope _scope;
     private AuthnomalyDatabaseContext _context;
     private IUsersRepo _usersRepository;
-    private static readonly string databaseHost = Environment.GetEnvironmentVariable("DB_HOST") ?? throw new ArgumentException("NO DATABASE HOST SET");
-    private static readonly string databaseName = Environment.GetEnvironmentVariable("DB_MAIN_NAME") ?? throw new ArgumentException("NO DATABASE NAME SET");
-    private static readonly string databaseUsername = Environment.GetEnvironmentVariable("DB_LOGIN_USERNAME") ?? throw new ArgumentException("NO DATABASE LOGIN USERNAME SET");
-    private static readonly string databasePassword = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_PASSWORD") ?? throw new ArgumentException("NO DATABASE PASSWORD SET");  
     public RepositoryTests(ITestOutputHelper output)
     {
         _output = output;
-        var collection = new ServiceCollection();
-        collection.AddDbContext<AuthnomalyDatabaseContext>(o =>
-            o.UseNpgsql($"Host={databaseHost};Database={databaseName};Username={databaseUsername};Password={databasePassword}"));
-        _provider = collection.BuildServiceProvider();
-        // one long-lived scope for the sequential tests; concurrency tests create their own scope per operation
-        _scope = _provider.CreateScope();
-        _context = _scope.ServiceProvider.GetRequiredService<AuthnomalyDatabaseContext>();
+        _scope = _db.NewScope();
+        _context = _scope.Context;
         _usersRepository = new UsersRepository(_context);
     }
-    // Inserts `count` freshly-generated users straight into the repo (real Add() calls, no mocking)
-    // and hands back the User instances the repo returned - each with the real, DB-assigned Id -
-    // so a test can immediately use them (FindById, Delete, etc.) without re-querying.
     private  async Task<IList<User>> PopulateRepo(int count = 10)
     {
         var created = new List<User>();
@@ -107,9 +95,8 @@ public class RepositoryTests : IDisposable
             {
                 try
                 {
-                    using var scope = _provider.CreateScope();
-                    var ctx = scope.ServiceProvider.GetService<AuthnomalyDatabaseContext>();
-                    IUsersRepo repo = new UsersRepository(ctx);
+                    using var scope = _db.NewScope();
+                    IUsersRepo repo = new UsersRepository(scope.Context);
                     if ((await repo.Add(new User(123133, "", ""))) == 0)
                     {
                         Interlocked.Decrement(ref added);
@@ -133,9 +120,8 @@ public class RepositoryTests : IDisposable
             {
                 try
                 {
-                    using var scope = _provider.CreateScope();
-                    var ctx = scope.ServiceProvider.GetService<AuthnomalyDatabaseContext>();
-                    IUsersRepo repo = new UsersRepository(ctx);
+                    using var scope = _db.NewScope();
+                    IUsersRepo repo = new UsersRepository(scope.Context);
                     if (await repo.Delete(123133))
                     {
                         Interlocked.Increment(ref deleted);
@@ -165,6 +151,6 @@ public class RepositoryTests : IDisposable
     public void Dispose()
     {
         _scope.Dispose();
-        _provider.Dispose();
+        _db.Dispose();
     }
 }

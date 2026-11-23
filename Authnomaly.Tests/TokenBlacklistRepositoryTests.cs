@@ -10,8 +10,6 @@ using Xunit;
 
 namespace Authnomaly.Tests;
 
-// Real Redis (localhost:6379, the docker container), real RedisCache as IDistributedCache.
-// Every key the tests create lives under the "authnomalytest:" prefix and is removed in each test's finally.
 [Collection("Redis")]
 public class TokenBlacklistRepositoryTests : IDisposable
 {

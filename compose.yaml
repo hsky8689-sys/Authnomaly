@@ -11,9 +11,10 @@
         - DB_HOST=main_database
         - REDIS_HOST=redis
         - ASPNETCORE_ENVIRONMENT=Development
+        - GEO_LOCALDB_PATH=127.0.0.1:.:ro
     depends_on:
       main_database:
-        condition: service_started
+        condition: service_healthy
   main_database:
     image: postgres:18
     ports:
@@ -24,14 +25,14 @@
       - POSTGRES_DB=${DB_MAIN_NAME}
       - POSTGRES_PASSWORD=${AUTHNOMALY_DB_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL","pg_isready -U postgres"]
+      test: ["CMD-SHELL","pg_isready -U postgres -h 127.0.0.1"]
       interval: 5s
       timeout: 5s
       retries: 5
     volumes:
       - main_data:/var/lib/postgresql
   redis:
-    image: redis:latest
+    image: redis:8.8
     restart: always
     ports:
       - "127.0.0.1:6379:6379"
