@@ -47,8 +47,6 @@ public class BucketRateLimitter : IRateLimitter
     }
     public async Task<RateLimitResponse> IncrementKey(string key,TimeSpan ttl,int limit)
     {
-        try
-        {
             long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             var call = await _db.ScriptEvaluateAsync(
                 LuaScript, 
@@ -59,11 +57,5 @@ public class BucketRateLimitter : IRateLimitter
             int tokensRemaining = Convert.ToInt32(call[1]);
             long retryAfter = Convert.ToInt64(call[2]);
             return new RateLimitResponse(accepted,tokensRemaining,retryAfter);
-        }
-        catch(Exception e)
-        {
-            Console.WriteLine("rate limit exception:"+e.Message);
-            return new RateLimitResponse(false,-1,-1);
-        }
     } 
 }

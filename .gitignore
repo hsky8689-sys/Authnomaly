@@ -38,6 +38,9 @@ Migrations/*.sql
 *.log
 logs/
 
+*.ps1
+tools/
+
 # OS junk
 .DS_Store
 Thumbs.db

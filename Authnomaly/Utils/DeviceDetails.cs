@@ -6,6 +6,7 @@ namespace Authnomaly.Utils;
 public class DeviceDetails
 {
     private static ILocationDetector _locationDetector;
+    private static readonly Parser Parser = Parser.GetDefault();
     public ILocationDetector LocationDetector
     {
         get => _locationDetector; 
@@ -17,11 +18,10 @@ public class DeviceDetails
     //only for logging in our server for now
     public static LoginAttempt CollectAttemptData(HttpContext context)
     {
-        var parser = Parser.GetDefault();
         var request = context.Request;
         var connection = context.Connection;
         string userAgentHeader = request.Headers["User-Agent"].ToString();
-        ClientInfo clientInfo = parser.Parse(userAgentHeader);
+        ClientInfo clientInfo = Parser.Parse(userAgentHeader);
         (string city, string country) = _locationDetector.GetStandardLocation(connection.RemoteIpAddress);
         LoginAttempt attempt = new LoginAttempt(0);
         attempt.IpAddress = connection.RemoteIpAddress;

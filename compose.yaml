@@ -15,6 +15,8 @@
         - AUTHNOMALY_DB_STATEMENT_TIMEOUT=${AUTHNOMALY_DB_STATEMENT_TIMEOUT}
         - GEO_LOCALDB_PATH=/geo/GeoLite2-City.mmdb
         - LOG_DIR=/logs
+    restart: on-failure
+    mem_limit: 1g
     volumes:
       - ${GEO_CONTAINER_PATH}
       - ${LOG_DIR}:/logs

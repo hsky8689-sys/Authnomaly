@@ -28,22 +28,13 @@ public class SlidingWindowLogRateLimitter : IRateLimitter
     }
     public async Task<RateLimitResponse> IncrementKey(string key,TimeSpan ttl,int limit)
     {
-        try
-        {
-            var call = await _db.ScriptEvaluateAsync(
+        var call = await _db.ScriptEvaluateAsync(
                 LuaScript, 
                 new RedisKey[]{key},
-                new RedisValue[]{limit,ttl.TotalSeconds,Guid.NewGuid().ToString()}
-            );
-            bool accepted = Convert.ToBoolean(call[0]);
-            int tokensRemaining = Convert.ToInt32(call[1]);
-            long retryAfter = Convert.ToInt64(call[2]);
-            return new RateLimitResponse(accepted,tokensRemaining,retryAfter);
-        }
-        catch(Exception e)
-        {
-            Console.WriteLine("rate limit exception:"+e.Message);
-            return new RateLimitResponse(false,-1,-1);
-        }
+                new RedisValue[]{limit,ttl.TotalSeconds,Guid.NewGuid().ToString()});
+        bool accepted = Convert.ToBoolean(call[0]);
+        int tokensRemaining = Convert.ToInt32(call[1]);
+        long retryAfter = Convert.ToInt64(call[2]);
+        return new RateLimitResponse(accepted,tokensRemaining,retryAfter);
     }
 }

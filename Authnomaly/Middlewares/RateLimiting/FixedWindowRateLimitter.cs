@@ -25,8 +25,6 @@ public class FixedWindowRateLimitter : IRateLimitter
     }
     public async Task<RateLimitResponse> IncrementKey(string key,TimeSpan ttl,int limit)
     {
-        try
-        {
             var call = await _db.ScriptEvaluateAsync(
                 LuaScript, 
                 new RedisKey[]{key},
@@ -36,11 +34,5 @@ public class FixedWindowRateLimitter : IRateLimitter
             int tokensRemaining = Convert.ToInt32(call[1]);
             long retryAfter = Convert.ToInt64(call[2]);
             return new RateLimitResponse(accepted,tokensRemaining,retryAfter);
-        }
-        catch(Exception e)
-        {
-            Console.WriteLine("rate limit exception:"+e.Message);
-            return new RateLimitResponse(false,-1,-1);
-        }
     }
 }

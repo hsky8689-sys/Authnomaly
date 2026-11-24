@@ -31,8 +31,6 @@ public class SlidingWindowCounterRateLimiter:IRateLimitter
     } 
     public async Task<RateLimitResponse> IncrementKey(string key, TimeSpan ttl, int limit)
     {
-        try
-        {
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             var now = timestamp / 1000;
             String currentKey = $"{key}:{now}";
@@ -46,11 +44,5 @@ public class SlidingWindowCounterRateLimiter:IRateLimitter
             int tokensRemaining = Convert.ToInt32(call[1]);
             long retryAfter = Convert.ToInt64(call[2]);
             return new RateLimitResponse(accepted,tokensRemaining,retryAfter);
-        }
-        catch(Exception e)
-        {
-            Console.WriteLine("rate limit exception:"+e.Message);
-            return new RateLimitResponse(false,-1,-1);
-        }
     }
 }
