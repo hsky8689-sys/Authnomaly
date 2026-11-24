@@ -10,13 +10,13 @@ namespace Authnomaly.Utils;
 
 public class RatelimitUtils
 {
-    private static readonly int _defaultSlidingWindowLimit = Int32.Parse(Environment.GetEnvironmentVariable("DEFAULT_SLIDING_WINDOW_LIMIT")!);
-    private static readonly int _defaultSlidingWindow_Window =  Int32.Parse(Environment.GetEnvironmentVariable("DEFAULT_SLIDING_WINDOW_WINDOW")!);
-    private static readonly int _defaultFixedWindowLimit = Int32.Parse(Environment.GetEnvironmentVariable("DEFAULT_FIXED_WINDOW_LIMIT")!);
-    private static readonly int _defaultFixedWindow_Window = Int32.Parse(Environment.GetEnvironmentVariable("DEFAULT_FIXED_WINDOW_WINDOW")!);
-    private static readonly int _defaultBucketLimit = Int32.Parse(Environment.GetEnvironmentVariable("DEFAULT_BUCKET_LIMIT")!);
-    private static readonly int _defaultBucket_Window = Int32.Parse(Environment.GetEnvironmentVariable("DEFAULT_BUCKET_WINDOW")!);
-    private static readonly string _dbRateLimitKey = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_RATELIMIT_KEY")!;
+    private static readonly int DefaultSlidingWindowLimit = Int32.Parse(Environment.GetEnvironmentVariable("DEFAULT_SLIDING_WINDOW_LIMIT")!);
+    private static readonly int DefaultSlidingWindowValueForWindow =  Int32.Parse(Environment.GetEnvironmentVariable("DEFAULT_SLIDING_WINDOW_WINDOW")!);
+    private static readonly int DefaultFixedWindowLimit = Int32.Parse(Environment.GetEnvironmentVariable("DEFAULT_FIXED_WINDOW_LIMIT")!);
+    private static readonly int DefaultFixedWindowValueForWindow = Int32.Parse(Environment.GetEnvironmentVariable("DEFAULT_FIXED_WINDOW_WINDOW")!);
+    private static readonly int DefaultBucketLimit = Int32.Parse(Environment.GetEnvironmentVariable("DEFAULT_BUCKET_LIMIT")!);
+    private static readonly int DefaultBucketWindow = Int32.Parse(Environment.GetEnvironmentVariable("DEFAULT_BUCKET_WINDOW")!);
+    private static readonly string DbRateLimitKey = Environment.GetEnvironmentVariable("AUTHNOMALY_DB_RATELIMIT_KEY")!;
     public static HashEntry[] ToHash(EndpointLimitData r) =>
     [
         new("method", r.Method.Method), new("path", r.Path), new("order", r.Order),
@@ -62,7 +62,8 @@ public class RatelimitUtils
             RateLimitStrategy.FixedWindow => new FixedWindowRateLimitter(multiplexer),
             RateLimitStrategy.SlidingWindowLog => new SlidingWindowLogRateLimitter(multiplexer),
             RateLimitStrategy.SlidingWindowCounter => new SlidingWindowCounterRateLimiter(multiplexer),
-            RateLimitStrategy.LeakyBucket => new LeakyBucketRateLimiter(multiplexer),
+            RateLimitStrategy.LeakyBucketPolicing => new LeakyBucketPolicingRateLimiter(multiplexer),
+            RateLimitStrategy.LeakyBucketShaping => new LeakyBucketShapingRateLimiter(multiplexer),
             _ => new SlidingWindowLogRateLimitter(multiplexer) // default fallback
         };
     }
@@ -74,20 +75,20 @@ public class RatelimitUtils
          * collectedData:endpoint data collected from the database or null if it could not be collected
          * Returns:the partition (limiter recipe) used by a PartitionedRateLimiter for this key
          */
-        if (key.Equals(_dbRateLimitKey))
+        if (key.Equals(DbRateLimitKey))
         {
             return RateLimitPartition.GetSlidingWindowLimiter(key, _ =>
                 new SlidingWindowRateLimiterOptions
                 {
                     AutoReplenishment = true,
-                    PermitLimit = collectedData?.Limit ?? _defaultSlidingWindowLimit ,
+                    PermitLimit = collectedData?.Limit ?? DefaultSlidingWindowLimit ,
                     QueueLimit = 0,
                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                     SegmentsPerWindow = 2,
-                    Window = TimeSpan.FromSeconds(collectedData?.WindowSeconds ?? _defaultSlidingWindow_Window)
+                    Window = TimeSpan.FromSeconds(collectedData?.WindowSeconds ?? DefaultSlidingWindowValueForWindow)
                 });
         }
-        if (key.Equals(_dbRateLimitKey) && collectedData is null)
+        if (key.Equals(DbRateLimitKey) && collectedData is null)
         {
             throw new ArgumentException();
         }
@@ -97,30 +98,30 @@ public class RatelimitUtils
                 new FixedWindowRateLimiterOptions
                 {
                     AutoReplenishment  = true,
-                    PermitLimit = collectedData?.Limit ?? _defaultFixedWindowLimit,
+                    PermitLimit = collectedData?.Limit ?? DefaultFixedWindowLimit,
                     QueueLimit = 0,
                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                    Window = TimeSpan.FromSeconds(collectedData?.WindowSeconds ?? _defaultFixedWindow_Window)
+                    Window = TimeSpan.FromSeconds(collectedData?.WindowSeconds ?? DefaultFixedWindowValueForWindow)
                 }),
             RateLimitStrategy.SlidingWindowCounter=>RateLimitPartition.GetSlidingWindowLimiter(key,_=>
                 new SlidingWindowRateLimiterOptions
                 {
                     AutoReplenishment = true,
-                    PermitLimit = collectedData?.Limit ?? _defaultSlidingWindowLimit,
+                    PermitLimit = collectedData?.Limit ?? DefaultSlidingWindowLimit,
                     QueueLimit = 0,
                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                     SegmentsPerWindow = 2,
-                    Window = TimeSpan.FromSeconds(collectedData?.WindowSeconds ?? _defaultSlidingWindow_Window)
+                    Window = TimeSpan.FromSeconds(collectedData?.WindowSeconds ?? DefaultSlidingWindowValueForWindow)
                 }),
             RateLimitStrategy.SlidingWindowLog=>RateLimitPartition.GetSlidingWindowLimiter(key,_=>
                 new SlidingWindowRateLimiterOptions
                 {
                     AutoReplenishment = true,
-                    PermitLimit = collectedData?.Limit ?? _defaultSlidingWindowLimit,
+                    PermitLimit = collectedData?.Limit ?? DefaultSlidingWindowLimit,
                     QueueLimit = 0,
                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                     SegmentsPerWindow = 2,
-                    Window = TimeSpan.FromSeconds(collectedData?.WindowSeconds ?? _defaultSlidingWindow_Window)
+                    Window = TimeSpan.FromSeconds(collectedData?.WindowSeconds ?? DefaultSlidingWindowValueForWindow)
                 }),
             RateLimitStrategy.Bucket=>RateLimitPartition.GetTokenBucketLimiter(key,_=>
                 new TokenBucketRateLimiterOptions
@@ -128,11 +129,22 @@ public class RatelimitUtils
                     AutoReplenishment = true,
                     QueueLimit = 0,
                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                    ReplenishmentPeriod = TimeSpan.FromSeconds(collectedData?.WindowSeconds ?? _defaultBucket_Window),
-                    TokenLimit = collectedData?.Limit ?? _defaultBucketLimit,
-                    TokensPerPeriod = collectedData?.Limit ?? _defaultBucketLimit
+                    ReplenishmentPeriod = TimeSpan.FromSeconds(collectedData?.WindowSeconds ?? DefaultBucketWindow),
+                    TokenLimit = collectedData?.Limit ?? DefaultBucketLimit,
+                    TokensPerPeriod = collectedData?.Limit ?? DefaultBucketLimit
                 }),
-            RateLimitStrategy.LeakyBucket=>RateLimitPartition.GetNoLimiter(key)
+            RateLimitStrategy.LeakyBucketPolicing=>RateLimitPartition.GetNoLimiter(key),
+            RateLimitStrategy.LeakyBucketShaping=>RateLimitPartition.GetNoLimiter(key),
+            _=>RateLimitPartition.GetSlidingWindowLimiter(key,_=>
+                new SlidingWindowRateLimiterOptions
+                {
+                    AutoReplenishment = true,
+                    PermitLimit = collectedData?.Limit ?? DefaultSlidingWindowLimit,
+                    QueueLimit = 0,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    SegmentsPerWindow = 2,
+                    Window = TimeSpan.FromSeconds(collectedData?.WindowSeconds ?? DefaultSlidingWindowValueForWindow)
+                }),
         };
     }
     private static string ClientIpValue(HttpContext context)

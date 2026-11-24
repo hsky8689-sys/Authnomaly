@@ -126,7 +126,6 @@ public class RatelimitFilter
                         return; 
                     }
                 }
-                //TODO leaky bucket implementation
             }
             catch (Exception e)
             {

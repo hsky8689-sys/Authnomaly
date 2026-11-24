@@ -13,6 +13,7 @@ public class RateLimitingTests
 {
     private ITestOutputHelper _output;
     private TestDb _db;
+    int inMemoryDbRateLimit = Int32.Parse(Environment.GetEnvironmentVariable("DEFAULT_SLIDING_WINDOW_LIMIT")!);
     //private static readonly string host = Environment.GetEnvironmentVariable("BACKEND_HOST") ?? throw new ArgumentException("NO BACKEND HOST SET");
     //private static readonly int port = Int32.Parse(Environment.GetEnvironmentVariable("BACKEND_PORT") ?? throw new ArgumentException("NO BACKEND PORT SET"));
     public RateLimitingTests(ITestOutputHelper output)
@@ -34,7 +35,7 @@ public class RateLimitingTests
     private static readonly HttpClient SharedClient = new(new SocketsHttpHandler
     {
         MaxConnectionsPerServer = 256
-    }) { BaseAddress = new Uri($"http://localhost:8080") };
+    }) { BaseAddress = new Uri($"http://localhost:5000") };
     private IReadOnlyDictionary<InAppEndpoint, string> knownEndpoints =
         new Dictionary<InAppEndpoint, string>()
         {
@@ -67,33 +68,35 @@ public class RateLimitingTests
             _ => new()
         };
     }
-    private static (int Min, int Max) ExpectedAcceptedForMultipleRules(int[] ruleIndexes,
+    private (int Min, int Max) ExpectedAcceptedForMultipleRules(int[] ruleIndexes,
         int requestsSent,
         int[] limits,
         int[] windows,
         RateLimitStrategy[] strategies,
-        double runTimeSeconds)
+        double runTimeSeconds,
+        bool checkMemory=false)
     {
         /*
          *
          */
         int min = ruleIndexes.Min(i => limits[i]);
+        min = !checkMemory ? min: Math.Min(min,inMemoryDbRateLimit);
         double max = ruleIndexes.Min(i =>
             limits[i] + (strategies[i] == RateLimitStrategy.Bucket ? runTimeSeconds * limits[i] / windows[i] : 0));
         return (Math.Min(min, requestsSent), Math.Min((int)Math.Ceiling(max), requestsSent));
     }
 
     private bool CheckResultsOutput(RateLimitStrategy strategy, double runTimeSeconds, int limit, int window,
-        int accepted, double allowedError = 10e7)
+        int accepted, double allowedError = 10e7,bool checkMemory=false)
     {
-        double total = (runTimeSeconds / window) * limit;
-        if (runTimeSeconds % window > 0) total += limit;
+        double total = (runTimeSeconds / window) * (!checkMemory ? limit : Math.Min(limit,inMemoryDbRateLimit));
+        if (runTimeSeconds % window > 0) total += (!checkMemory ? limit : Math.Min(limit,inMemoryDbRateLimit));
         return (accepted - allowedError <= total && accepted + allowedError >= total)
                ||
                (strategy.Equals(RateLimitStrategy.FixedWindow) &&
                 accepted - allowedError <= 2 * total && accepted + allowedError >= total * 2); //fixed window edge case
+        // for leaky bucket,we established that the window parameter will be equivalent to the "leak_rate"
     }
-
     [Theory]
     [InlineData(500, 60, 100, "POST", 0, null, 0, 2)]
     [InlineData(500, 60, 100, "POST", 0, null, 0, 0)]
@@ -113,6 +116,14 @@ public class RateLimitingTests
     [InlineData(200, 60, 500, "POST", 0, null, 1, 3)]
     [InlineData(500, 10, 500, "POST", 0, null, 0, 3)]
     [InlineData(400, 10, 500, "POST", 0, null, 1, 2)]
+    [InlineData(300, 140, 300, "POST", 0, null, 0, 4)]
+    [InlineData(120, 1200, 100, "POST", 0, null, 1, 4)]
+    [InlineData(600, 900, 500, "POST", 0, null, 0, 5)]
+    [InlineData(400, 300, 500, "POST", 0, null, 1, 4)]
+    [InlineData(300, 140, 300, "POST", 0, null, 0, 5)]
+    [InlineData(120, 1200, 100, "POST", 0, null, 1, 5)]
+    [InlineData(300, 75, 500, "POST", 0, null, 0, 5)]
+    [InlineData(400, 300, 500, "POST", 0, null, 1, 5)]
     public async Task BasicSpamTests(int multiple, int window, int limit, string method, int source, string? fieldName,
         int appEndpoint, int strategy)
     {
@@ -174,7 +185,7 @@ public class RateLimitingTests
                 HttpClient client = new HttpClient(new SocketsHttpHandler
                 {
                     MaxConnectionsPerServer = 256
-                }) { BaseAddress = new Uri(/*$"{host}:{port}"*/"http://localhost:8080") };
+                }) { BaseAddress = new Uri(/*$"{host}:{port}"*/"http://localhost:5000") };
                 var response = await SendAndIntercept(
                     client,
                     parsedMethod,
@@ -242,6 +253,14 @@ public class RateLimitingTests
     [InlineData(300, new[] { 120, 120 }, new[] { 100, 40 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 1, new[] { 0, 1 })]
     [InlineData(300, new[] { 120 }, new[] { 50 }, new[] { "POST" }, new[] { 0 }, new[] { (string?)null }, 2, new[] { 0 })]                                               
     [InlineData(1000, new[] { 2, 120 }, new[] { 100, 900 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 0, 0 })]
+    [InlineData(400, new[] { 90, 90, 90, 90, 90, 90 }, new[] { 80, 80, 80, 80, 80, 80 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 0, 0, 0, 0 }, new[] { null, null, "Username", "Password", null, "Username" }, 0, new[] { 4, 4, 4, 4, 4, 4 })]
+    [InlineData(600, new[] { 100, 30, 50, 120, 200, 140 }, new[] { 80, 80, 80, 80, 80, 80 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 0, 0, 0, 0 }, new[] { null, null, null, null, null, "Username" }, 0, new[] { 5, 5, 5, 5, 5, 5 })]
+    [InlineData(350, new[] { 90, 90, 90, 90, 90, 90 }, new[] { 120, 200, 100, 80, 80, 80 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 1, 1, 0, 1 }, new[] { null, null, "Username", "Password", null, "Username" }, 0, new[] { 4, 4, 2, 3, 5, 5 })]
+    [InlineData(500, new[] { 100, 100, 120, 110, 85, 90 }, new[] { 80, 50, 80, 180, 200, 80 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 0, 0, 0, 0 }, new[] { null, null, "Username", "Password", null, "Username" }, 0, new[] { 4, 4, 4, 4, 4, 4 })]
+    [InlineData(1000, new[] { 300, 300, 400, 500, 600, 3210 }, new[] { 80, 80, 80, 80, 80, 80 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 0, 0, 0, 0 }, new[] { null, null, "Username", "Password", null, "Username" }, 0, new[] { 4, 5, 4, 5, 4, 5 })]
+    [InlineData(750, new[] { 100, 30, 50, 120, 200, 140 }, new[] { 80, 80, 80, 80, 80, 80 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 0, 0, 0, 0 }, new[] { null, null, null, null, null, "Username" }, 0, new[] { 5, 5, 5, 5, 5, 5 })]
+    [InlineData(400, new[] { 500, 500, 500, 500, 600, 700 }, new[] { 120, 200, 5000, 300, 1200, 300 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 1, 1, 0, 1 }, new[] { null, null, "Username", "Password", null, "Username" }, 0, new[] { 4, 4, 4, 5, 5, 5 })]
+    [InlineData(350, new[] { 100, 100, 120, 110, 85, 90 }, new[] { 80, 50, 80, 180, 200, 80 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 0, 0, 0, 0 }, new[] { null, null, "Username", "Password", null, "Username" }, 0, new[] { 4, 4, 4, 4, 4, 4 })]
     public async Task SpamTestsWithMultipleAttributes(int multiple,IList<int> windows,IList<int> limits,IList<string> methods,IList<int> sources,IList<string?> fieldNames, int appEndpoint, IList<int> strategies)
     {
         /*
@@ -361,6 +380,14 @@ public class RateLimitingTests
     [InlineData(300, new[] { 120, 120 }, new[] { 100, 40 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 1, new[] { 0, 1 })]
     [InlineData(300, new[] { 120 }, new[] { 50 }, new[] { "POST" }, new[] { 0 }, new[] { (string?)null }, 2, new[] { 0 })]                                               
     [InlineData(1000, new[] { 2, 120 }, new[] { 100, 900 }, new[] { "POST", "POST" }, new[] { 0, 1 }, new[] { null, "Username" }, 0, new[] { 0, 0 })]
+    [InlineData(400, new[] { 90, 90, 90, 90, 90, 90 }, new[] { 80, 80, 80, 80, 80, 80 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 0, 0, 0, 0 }, new[] { null, null, "Username", "Password", null, "Username" }, 0, new[] { 4, 4, 4, 4, 4, 4 })]
+    [InlineData(600, new[] { 100, 30, 50, 120, 200, 140 }, new[] { 80, 80, 80, 80, 80, 80 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 0, 0, 0, 0 }, new[] { null, null, null, null, null, "Username" }, 0, new[] { 5, 5, 5, 5, 5, 5 })]
+    [InlineData(350, new[] { 90, 90, 90, 90, 90, 90 }, new[] { 120, 200, 100, 80, 80, 80 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 1, 1, 0, 1 }, new[] { null, null, "Username", "Password", null, "Username" }, 0, new[] { 4, 4, 2, 3, 5, 5 })]
+    [InlineData(500, new[] { 100, 100, 120, 110, 85, 90 }, new[] { 80, 50, 80, 180, 200, 80 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 0, 0, 0, 0 }, new[] { null, null, "Username", "Password", null, "Username" }, 0, new[] { 4, 4, 4, 4, 4, 4 })]
+    [InlineData(1000, new[] { 300, 300, 400, 500, 600, 3210 }, new[] { 80, 80, 80, 80, 80, 80 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 0, 0, 0, 0 }, new[] { null, null, "Username", "Password", null, "Username" }, 0, new[] { 4, 5, 4, 5, 4, 5 })]
+    [InlineData(750, new[] { 100, 30, 50, 120, 200, 140 }, new[] { 80, 80, 80, 80, 80, 80 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 0, 0, 0, 0 }, new[] { null, null, null, null, null, "Username" }, 0, new[] { 5, 5, 5, 5, 5, 5 })]
+    [InlineData(400, new[] { 500, 500, 500, 500, 600, 700 }, new[] { 120, 200, 5000, 300, 1200, 300 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 1, 1, 0, 1 }, new[] { null, null, "Username", "Password", null, "Username" }, 0, new[] { 4, 4, 4, 5, 5, 5 })]
+    [InlineData(350, new[] { 100, 100, 120, 110, 85, 90 }, new[] { 80, 50, 80, 180, 200, 80 }, new[] { "POST", "POST", "POST", "POST", "POST", "POST" }, new[] { 0, 0, 0, 0, 0, 0 }, new[] { null, null, "Username", "Password", null, "Username" }, 0, new[] { 4, 4, 4, 4, 4, 4 })]
     public async Task SpamTestsForInMemoryRateLimiters(int multiple,IList<int> windows,IList<int> limits,IList<string> methods,IList<int> sources,IList<string?> fieldNames, int appEndpoint, IList<int> strategies)
     {
         /*
@@ -422,12 +449,13 @@ public class RateLimitingTests
                 sw.Stop();
                 Assert.True(sw.Elapsed.TotalSeconds < windows.Min(), $"test ran {sw.Elapsed.TotalSeconds:F1}seconds, more thatn the smallest possible window");
                 //grouping requests after methods
+                _db.Multiplexer.Close();
                 foreach (var group in Enumerable.Range(0, length).GroupBy(i => parsedMethods[i]))
                 {
                     int[] rules = group.ToArray();
                     int sent = rules.Length * multiple;
                     int accepted = Enumerable.Range(0, results.Length).Count(r => rules.Contains(r % length) && results[r] != HttpStatusCode.TooManyRequests);
-                    var (min, max) = ExpectedAcceptedForMultipleRules(rules, sent, limits.ToArray(), windows.ToArray(), parsedStrategies.ToArray(), sw.Elapsed.TotalSeconds);
+                    var (min, max) = ExpectedAcceptedForMultipleRules(rules, sent, limits.ToArray(), windows.ToArray(), parsedStrategies.ToArray(), sw.Elapsed.TotalSeconds,checkMemory:true);
                     _output.WriteLine($"{group.Key}: accepted {accepted}, expected [{min}, {max}] in {sw.Elapsed.TotalSeconds:F2}s");
                     Assert.InRange(accepted, min, max);
                 }

@@ -8,7 +8,8 @@ public enum RateLimitStrategy
     SlidingWindowLog=1,
     Bucket=2,
     SlidingWindowCounter=3,
-    LeakyBucket=4
+    LeakyBucketPolicing=4,
+    LeakyBucketShaping=5
 }
 public enum RateLimitSource
 {
